@@ -812,6 +812,12 @@
 
             // Save to Sourcing List
             container.querySelector('#sc-saveToSourcingBtn').addEventListener('click', () => {
+                if (!isPro()) {
+                    proModal.style.display = 'flex';
+                    showToast('📊 Saving to Sourcing List requires Seller Pro.', 'seller-calc-status-warn');
+                    return;
+                }
+
                 const list = getSourcingList();
                 if (list.length >= MAX_SOURCING_ITEMS) {
                     showToast('⚠️ Sourcing List full (50 max). Export CSV or remove items.', 'seller-calc-status-warn');
@@ -931,6 +937,12 @@
 
             // CSV Export Button
             container.querySelector('#sc-exportCsvBtn').addEventListener('click', () => {
+                if (!isPro()) {
+                    proModal.style.display = 'flex';
+                    showToast('📥 CSV Export requires Seller Pro.', 'seller-calc-status-warn');
+                    return;
+                }
+
                 const list = getSourcingList();
                 if (list.length === 0) {
                     showToast('⚠️ Sourcing List is empty. Save items from the calculator to export!', 'seller-calc-status-warn');
