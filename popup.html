@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            width: 395px;
+            padding: 14px;
+            margin: 0;
+            background-color: #0f172a;
+            color: #f8fafc;
+            position: relative;
+        }
+
+        .header-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            gap: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        h3 {
+            margin: 0;
+            font-size: 15px;
+            color: #38bdf8;
+            font-weight: 700;
+            white-space: nowrap;
+            letter-spacing: -0.2px;
+        }
+
+        .header-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+            height: 26px;
+            margin: 0;
+        }
+
+        .header-count-pill {
+            background: rgba(56, 189, 248, 0.18);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 999px;
+            padding: 0 5px;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 15px;
+            display: inline-block;
+        }
+
+        .header-btn:hover {
+            background: #334155;
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        .pro-badge-btn {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(225, 29, 72, 0.15));
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+            font-weight: 600;
+        }
+
+        .pro-badge-btn:hover {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(225, 29, 72, 0.3));
+            color: #fef08a;
+            border-color: #fbbf24;
+        }
+
+        .pro-badge-btn.is-pro {
+            background: linear-gradient(135deg, #f59e0b, #e11d48);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+        }
+
+        /* 1-Click Scraper Button */
+        .scrape-action-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(135deg, #1e293b, #1e1b4b);
+            border: 1px solid #4338ca;
+            color: #e0e7ff;
+            border-radius: 6px;
+            padding: 7px 10px;
+            margin-bottom: 10px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .scrape-action-btn:hover {
+            background: linear-gradient(135deg, #2e1065, #3730a3);
+            border-color: #6366f1;
+            color: #ffffff;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pro-pill {
+            background: linear-gradient(135deg, #f59e0b, #e11d48);
+            color: #fff;
+            font-size: 8.5px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        /* Scraped Banner */
+        .scraped-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 6px;
+            padding: 5px 8px;
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
+
+        .scraped-details {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .scraped-tag {
+            background: #0284c7;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .scraped-title-text {
+            color: #bae6fd;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 250px;
+        }
+
+        .clear-scraped-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .clear-scraped-btn:hover {
+            color: #ef4444;
+        }
+
+        /* Notification message */
+        .scrape-status {
+            font-size: 11px;
+            padding: 6px 8px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            text-align: center;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+
+        .status-success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #86efac;
+        }
+
+        .status-warn {
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            color: #fde047;
+        }
+
+        .status-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .field {
+            margin-bottom: 8px;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
+
+        select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            background: #1e293b;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            background: #1e293b;
+            color: #fff;
+            font-size: 13px;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+
+        .results-table {
+            width: 100%;
+            margin-top: 12px;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        .results-table th {
+            text-align: left;
+            color: #94a3b8;
+            padding: 4px 3px;
+            border-bottom: 1px solid #334155;
+            font-size: 10.5px;
+        }
+
+        .results-table td {
+            padding: 6px 3px;
+            border-bottom: 1px solid #1e293b;
+            vertical-align: middle;
+        }
+
+        .best-val {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .profit-negative {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .under-breakeven {
+            background: rgba(239, 68, 68, 0.12);
+            border-radius: 4px;
+            padding: 4px 3px !important;
+        }
+
+        .badge-under {
+            display: block;
+            font-size: 8px;
+            font-weight: 600;
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.25);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            padding: 1px 3px;
+            border-radius: 3px;
+            margin-top: 2px;
+            line-height: 1.1;
+            white-space: nowrap;
+            width: fit-content;
+        }
+
+        .no-stores-msg {
+            margin-top: 14px;
+            padding: 10px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-align: center;
+            background: #1e293b;
+            border: 1px dashed #334155;
+            border-radius: 6px;
+        }
+
+        /* Sourcing List Buttons on Calc View */
+        .sourcing-action-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #1e293b;
+        }
+
+        .sourcing-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 7px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .save-btn {
+            background: #0284c7;
+            border: 1px solid #0369a1;
+            color: #ffffff;
+        }
+
+        .save-btn:hover {
+            background: #0369a1;
+        }
+
+        .view-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+        }
+
+        .view-btn:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+
+        .count-badge {
+            background: #0f172a;
+            color: #38bdf8;
+            padding: 1px 5px;
+            border-radius: 10px;
+            font-size: 9.5px;
+            font-weight: 700;
+        }
+
+        /* Settings view list & toggle switches */
+        .stores-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .store-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #1e293b;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+        }
+
+        .store-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .store-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .store-desc {
+            font-size: 10px;
+            color: #94a3b8;
+        }
+
+        /* Toggle switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 38px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #475569;
+            transition: .2s;
+            border-radius: 22px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .2s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #38bdf8;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+
+        .settings-hint {
+            margin-top: 12px;
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* Sourcing View Screen */
+        .sourcing-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 6px 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 9.5px;
+            color: #94a3b8;
+            margin-bottom: 2px;
+        }
+
+        .stat-val {
+            font-size: 12px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .stat-profit {
+            color: #4ade80;
+        }
+
+        .sourcing-btns-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .export-csv-btn {
+            flex: 1;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            color: #ffffff;
+            font-size: 11.5px;
+            font-weight: 700;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: all 0.15s ease;
+        }
+
+        .export-csv-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+        }
+
+        .clear-list-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .clear-list-btn:hover {
+            background: #334155;
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+
+        .sourcing-items-container {
+            max-height: 280px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-right: 2px;
+        }
+
+        .sourcing-item-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 10px;
+            position: relative;
+        }
+
+        .sourcing-item-card:hover {
+            border-color: #475569;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 4px;
+        }
+
+        .item-title {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #f8fafc;
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .item-link {
+            color: #38bdf8;
+            text-decoration: none;
+            font-size: 10px;
+            margin-left: 6px;
+            padding: 1px 5px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            transition: all 0.15s ease;
+        }
+
+        .item-link:hover {
+            background: rgba(56, 189, 248, 0.25);
+            color: #ffffff;
+            border-color: #38bdf8;
+        }
+
+        .item-delete-btn {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        .item-delete-btn:hover {
+            color: #ef4444;
+        }
+
+        .item-details {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10.5px;
+            color: #94a3b8;
+        }
+
+        .item-metrics {
+            display: flex;
+            gap: 8px;
+        }
+
+        .item-profit-badge {
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        .item-profit-badge.negative {
+            color: #ef4444;
+        }
+
+        .empty-sourcing-msg {
+            padding: 24px 12px;
+            text-align: center;
+            font-size: 11.5px;
+            color: #94a3b8;
+            background: #1e293b;
+            border: 1px dashed #334155;
+            border-radius: 8px;
+            line-height: 1.5;
+        }
+
+        /* Pro Modal Upgrade Overlay */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.94);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 18px;
+            z-index: 100;
+            box-sizing: border-box;
+            border-radius: 6px;
+        }
+
+        .pro-card {
+            background: #1e293b;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 20px rgba(245, 158, 11, 0.15);
+        }
+
+        .pro-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fbbf24;
+            margin: 0 0 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pro-subtitle {
+            font-size: 11.5px;
+            color: #cbd5e1;
+            margin-bottom: 14px;
+            line-height: 1.4;
+        }
+
+        .pro-feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .pro-feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 11px;
+            color: #f1f5f9;
+            line-height: 1.35;
+        }
+
+        .feature-icon {
+            color: #38bdf8;
+            font-weight: bold;
+        }
+
+        .pro-toggle-btn {
+            width: 100%;
+            padding: 9px;
+            background: linear-gradient(135deg, #f59e0b, #e11d48);
+            border: none;
+            border-radius: 6px;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+            transition: all 0.2s;
+        }
+
+        .pro-toggle-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        .modal-close-btn {
+            width: 100%;
+            margin-top: 8px;
+            background: transparent;
+            border: 1px solid #475569;
+            color: #94a3b8;
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .modal-close-btn:hover {
+            background: #334155;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Calculator View -->
+    <div id="calcView">
+        <div class="header-bar">
+            <h3>Seller Fees & Profits</h3>
+            <div class="header-actions">
+                <button id="headerListBtn" class="header-btn" title="View Sourcing Scout List">
+                    <span>📋 Sheet</span><span class="header-count-pill" id="headerListCount">0</span>
+                </button>
+                <button id="proBadgeBtn" class="header-btn pro-badge-btn" title="Seller Pro Status">
+                    👑 <span id="tierText">Free</span>
+                </button>
+                <button id="toSettingsBtn" class="header-btn" title="Configure Stores">
+                    🏪 Stores
+                </button>
+            </div>
+        </div>
+
+        <!-- 1-Click Listing Scraper Button -->
+        <button id="scrapeBtn" class="scrape-action-btn">
+            <div class="btn-left">
+                <span>⚡</span>
+                <span>1-Click Listing Auto-Fill</span>
+            </div>
+            <span class="pro-pill">PRO</span>
+        </button>
+
+        <!-- Dynamic Scrape Feedback / Banner -->
+        <div id="scrapeStatus" class="scrape-status" style="display: none;"></div>
+        <div id="scrapedItemBanner" class="scraped-banner" style="display: none;">
+            <div class="scraped-details">
+                <span class="scraped-tag" id="scrapedPlatform">eBay</span>
+                <span class="scraped-title-text" id="scrapedTitleText">Listing Title</span>
+            </div>
+            <button id="clearScrapedBtn" class="clear-scraped-btn" title="Clear scraped info">×</button>
+        </div>
+
+        <div class="field">
+            <label for="category">Product Category</label>
+            <select id="category">
+                <option value="general">General Merchandise</option>
+                <option value="electronics">Consumer Electronics</option>
+                <option value="apparel">Apparel / Fashion</option>
+                <option value="media">Books & Media</option>
+            </select>
+        </div>
+
+        <div class="grid-2">
+            <div class="field">
+                <label>Cost of Item ($)</label>
+                <input type="number" id="cost" placeholder="10.00" step="0.01">
+            </div>
+            <div class="field">
+                <label>Selling Price ($)</label>
+                <input type="number" id="sellPrice" placeholder="35.00" step="0.01">
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Est. Shipping & Materials ($)</label>
+            <input type="number" id="shipping" placeholder="5.00" step="0.01" value="0">
+        </div>
+
+        <table class="results-table" id="resultsSection" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Channel</th>
+                    <th>Fee</th>
+                    <th>Break-Even</th>
+                    <th>Profit</th>
+                    <th>ROI</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+
+        <!-- Sourcing List Action Bar -->
+        <div id="sourcingActionBar" class="sourcing-action-bar" style="display: none;">
+            <button id="saveToSourcingBtn" class="sourcing-btn save-btn" title="Save current calculations to scout list">
+                <span>💾 Save to Sourcing List</span>
+                <span class="pro-pill">PRO</span>
+            </button>
+            <button id="openSourcingListBtn" class="sourcing-btn view-btn" title="Open scouted list">
+                <span>📋 Scout List</span>
+                <span id="sourcingCountBadge" class="count-badge">0/50</span>
+            </button>
+        </div>
+
+        <div id="noStoresMsg" class="no-stores-msg" style="display: none;">
+            No stores enabled. Click <strong>🏪 Stores</strong> to turn on store comparisons.
+        </div>
+    </div>
+
+    <!-- Sourcing Scout List View -->
+    <div id="sourcingView" style="display: none;">
+        <div class="header-bar">
+            <h3>Sourcing Scout List (<span id="sourcingListTitleCount">0</span>/50)</h3>
+            <button id="toCalcFromListBtn" class="header-btn" title="Back to Calculator">
+                ← Back
+            </button>
+        </div>
+
+        <div class="sourcing-stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Total Items</span>
+                <span class="stat-val" id="statTotalItems">0 / 50</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Total Profit</span>
+                <span class="stat-val stat-profit" id="statTotalProfit">$0.00</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Avg ROI</span>
+                <span class="stat-val" id="statAvgRoi">0%</span>
+            </div>
+        </div>
+
+        <div class="sourcing-btns-row">
+            <button id="exportCsvBtn" class="export-csv-btn">
+                📥 Export Clean CSV Sheet
+            </button>
+            <button id="clearSourcingListBtn" class="clear-list-btn" title="Clear all scouted items">
+                🗑️ Clear
+            </button>
+        </div>
+
+        <div class="sourcing-items-container" id="sourcingItemsContainer">
+            <!-- Dynamically populated scouted items -->
+        </div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settingsView" style="display: none;">
+        <div class="header-bar">
+            <h3>Visible Stores</h3>
+            <button id="toCalcBtn" class="header-btn" title="Back to Calculator">
+                ← Back
+            </button>
+        </div>
+
+        <div class="stores-list" id="storesList">
+            <!-- Dynamically populated store toggles -->
+        </div>
+
+        <div class="settings-hint">
+            Toggle stores on or off to customize your comparison table.
+        </div>
+    </div>
+
+    <!-- Pro Upgrade Modal -->
+    <div id="proModal" class="modal-overlay" style="display: none;">
+        <div class="pro-card">
+            <div class="pro-title">
+                <span>👑</span> Seller Pro Tier
+            </div>
+            <div class="pro-subtitle">
+                Supercharge your flipping workflow and eliminate manual listing entry.
+            </div>
+
+            <div class="pro-feature-list">
+                <div class="pro-feature-item">
+                    <span class="feature-icon">⚡</span>
+                    <div>
+                        <strong>1-Click Listing Scraping:</strong> Automatically pull price, title, and shipping directly from active Amazon, eBay & Poshmark tabs.
+                    </div>
+                </div>
+                <div class="pro-feature-item">
+                    <span class="feature-icon">📊</span>
+                    <div>
+                        <strong>CSV / Spreadsheet Export:</strong> Save up to 50 scouted items and 1-click export a clean spreadsheet with estimated net margins, ROI, fees, and break-even prices.
+                    </div>
+                </div>
+                <div class="pro-feature-item">
+                    <span class="feature-icon">🚀</span>
+                    <div>
+                        <strong>Auto Category & Fee Mapping:</strong> Instant detection of electronics, media, and apparel fee tiers.
+                    </div>
+                </div>
+            </div>
+
+            <button id="toggleProStatusBtn" class="pro-toggle-btn">
+                ⭐ Switch to Pro Tier (Free Trial / Active)
+            </button>
+            <button id="closeProModalBtn" class="modal-close-btn">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
