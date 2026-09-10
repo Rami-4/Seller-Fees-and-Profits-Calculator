@@ -46,7 +46,7 @@
     const SOURCING_STORAGE_KEY = 'seller_calc_sourcing_list';
     const MAX_SOURCING_ITEMS = 50;
 
-    let proCache = true; // Enabled demo by default for immediate convenience
+    let proCache = false; // Free tier by default
     let storesCache = { ebay: true, amazon: true, poshmark: true, stripe: true };
     let sourcingCache = [];
 
@@ -62,6 +62,9 @@
                     }
                     if (Array.isArray(res[SOURCING_STORAGE_KEY])) {
                         sourcingCache = [...res[SOURCING_STORAGE_KEY]];
+                    }
+                    if (activeWidgetInstance) {
+                        activeWidgetInstance.updateData(scrapeCurrentListing());
                     }
                 }
             });
@@ -94,6 +97,9 @@
                 if (changes[SOURCING_STORAGE_KEY] && Array.isArray(changes[SOURCING_STORAGE_KEY].newValue)) {
                     sourcingCache = [...changes[SOURCING_STORAGE_KEY].newValue];
                 }
+                if (activeWidgetInstance) {
+                    activeWidgetInstance.updateData(scrapeCurrentListing());
+                }
             }
         });
     }
@@ -107,6 +113,9 @@
             chrome.storage.local.set({ [PRO_STORAGE_KEY]: proCache });
         }
         try { localStorage.setItem(PRO_STORAGE_KEY, proCache ? 'true' : 'false'); } catch (e) {}
+        if (activeWidgetInstance) {
+            activeWidgetInstance.updateData(scrapeCurrentListing());
+        }
     }
     function getEnabledStores() {
         return { ...storesCache };
@@ -359,9 +368,9 @@
 
         let currentData = { ...data };
         let costVal = 0.00;
-        let sellPriceVal = currentData.price > 0 ? currentData.price : 35.00;
-        let shippingVal = currentData.shipping || 0;
-        let selectedCategory = currentData.category || 'general';
+        let sellPriceVal = isPro() && currentData.price > 0 ? currentData.price : 0.00;
+        let shippingVal = isPro() && currentData.shipping > 0 ? currentData.shipping : 0.00;
+        let selectedCategory = isPro() && currentData.category ? currentData.category : 'general';
         let isWindowExpanded = false;
 
         function renderFullWidget() {
@@ -369,6 +378,7 @@
             const list = getSourcingList();
             const listCount = list.length;
             const userIsPro = isPro();
+            const showScrapedBanner = userIsPro && currentData.price > 0;
 
             container.innerHTML = `
                 <div class="seller-calc-window">
@@ -400,7 +410,7 @@
                         </button>
 
                         <!-- Scraped Item Banner -->
-                        <div id="sc-scrapedBanner" class="seller-calc-scraped-banner" style="${currentData.price > 0 ? '' : 'display: none;'}">
+                        <div id="sc-scrapedBanner" class="seller-calc-scraped-banner" style="${showScrapedBanner ? '' : 'display: none;'}">
                             <div class="seller-calc-scraped-details">
                                 <span class="seller-calc-scraped-tag" id="sc-scrapedPlatform">${currentData.platform}</span>
                                 <span class="seller-calc-scraped-title" id="sc-scrapedTitle" title="${currentData.title}">${currentData.title}</span>
@@ -433,7 +443,7 @@
 
                         <div class="seller-calc-field">
                             <label>Est. Shipping & Materials ($)</label>
-                            <input type="number" id="sc-shipping" class="seller-calc-input" placeholder="0.00" step="0.01" value="${shippingVal.toFixed(2)}">
+                            <input type="number" id="sc-shipping" class="seller-calc-input" placeholder="0.00" step="0.01" value="${shippingVal > 0 ? shippingVal.toFixed(2) : '0.00'}">
                         </div>
 
                         <!-- 5-Column Results Table -->
@@ -675,9 +685,30 @@
                 if (updated) {
                     badge.classList.add('is-pro');
                     tierText.textContent = 'PRO';
+                    if (currentData.price > 0) {
+                        sellPriceInp.value = currentData.price.toFixed(2);
+                        sellPriceVal = currentData.price;
+                        if (currentData.shipping > 0) {
+                            shippingInp.value = currentData.shipping.toFixed(2);
+                            shippingVal = currentData.shipping;
+                        }
+                        if (currentData.category) {
+                            categorySelect.value = currentData.category;
+                            selectedCategory = currentData.category;
+                        }
+                        const banner = container.querySelector('#sc-scrapedBanner');
+                        if (banner) {
+                            banner.style.display = 'flex';
+                            container.querySelector('#sc-scrapedTitle').textContent = currentData.title;
+                            container.querySelector('#sc-scrapedPlatform').textContent = currentData.platform;
+                        }
+                        calculate();
+                    }
                 } else {
                     badge.classList.remove('is-pro');
                     tierText.textContent = 'Free';
+                    const banner = container.querySelector('#sc-scrapedBanner');
+                    if (banner) banner.style.display = 'none';
                 }
                 container.querySelector('#sc-toggleProBtn').textContent = updated ? 'Downgrade to Free Tier' : '⭐ Activate Pro Tier (Demo)';
                 proModal.style.display = 'none';
@@ -952,7 +983,16 @@
 
         function renderMinimizedBadge() {
             isWindowExpanded = false;
-            const displayPrice = sellPriceVal > 0 ? `$${sellPriceVal.toFixed(2)}` : (currentData.price > 0 ? `$${currentData.price.toFixed(2)}` : '');
+            const userIsPro = isPro();
+            if (userIsPro && (!currentData.price || currentData.price <= 0)) {
+                const fresh = scrapeCurrentListing();
+                if (fresh && fresh.price > 0) {
+                    currentData = { ...currentData, ...fresh };
+                    if (!sellPriceVal || sellPriceVal <= 0) sellPriceVal = fresh.price;
+                }
+            }
+            const activePrice = userIsPro ? (sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0)) : 0;
+            const displayPrice = activePrice > 0 ? `$${activePrice.toFixed(2)}` : '';
             const badgeText = displayPrice ? `⚡ Seller Calculator (${displayPrice})` : `⚡ Seller Calculator`;
             container.innerHTML = `
                 <div class="seller-calc-floating-badge" id="sc-floatingBadgeBtn" title="Open Seller Fees & Profits Calculator">
@@ -976,25 +1016,31 @@
             isExpanded: () => isWindowExpanded,
             getContainer: () => container,
             updateData: (newData) => {
+                if (!newData) newData = scrapeCurrentListing();
                 if (!newData) return;
-                let priceChanged = false;
-                if (newData.price > 0 && newData.price !== currentData.price) {
+                const userIsPro = isPro();
+                if (newData.price > 0) {
                     currentData.price = newData.price;
-                    sellPriceVal = newData.price;
-                    priceChanged = true;
+                    if (userIsPro && (!sellPriceVal || sellPriceVal <= 0)) {
+                        sellPriceVal = newData.price;
+                    }
                 }
-                if (newData.shipping > 0 && newData.shipping !== currentData.shipping) {
+                if (newData.shipping > 0) {
                     currentData.shipping = newData.shipping;
-                    shippingVal = newData.shipping;
+                    if (userIsPro && (!shippingVal || shippingVal <= 0)) {
+                        shippingVal = newData.shipping;
+                    }
                 }
                 if (newData.title) currentData.title = newData.title;
                 if (newData.platform) currentData.platform = newData.platform;
                 if (newData.url) currentData.url = newData.url;
+                if (newData.category && userIsPro) selectedCategory = newData.category;
 
                 if (!isWindowExpanded) {
                     const badgeSpan = container.querySelector('#sc-floatingBadgeBtn span');
-                    if (badgeSpan && priceChanged) {
-                        const displayPrice = sellPriceVal > 0 ? `$${sellPriceVal.toFixed(2)}` : '';
+                    if (badgeSpan) {
+                        const activePrice = userIsPro ? (sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0)) : 0;
+                        const displayPrice = activePrice > 0 ? `$${activePrice.toFixed(2)}` : '';
                         badgeSpan.textContent = displayPrice ? `⚡ Seller Calculator (${displayPrice})` : `⚡ Seller Calculator`;
                     }
                 }
