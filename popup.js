@@ -1,6 +1,7 @@
 const PLATFORMS_META = [
     { id: 'ebay', baseName: 'eBay', desc: 'Category-specific final value fee + $0.30' },
     { id: 'amazon', baseName: 'Amazon', desc: 'Category referral fee (+ closing fee for media)' },
+    { id: 'walmart', baseName: 'Walmart', desc: '15% referral fee (8% for electronics), $0.00 fixed' },
     { id: 'poshmark', baseName: 'Poshmark', desc: '20.00% flat sales fee' },
     { id: 'stripe', baseName: 'Direct / Stripe', desc: '2.90% + $0.30 payment fee' }
 ];
@@ -9,24 +10,28 @@ const CATEGORY_RATES = {
     general: {
         ebay: { rate: 0.1325, fixed: 0.30, label: 'eBay (~13.25% + $0.30)' },
         amazon: { rate: 0.15, fixed: 0.00, label: 'Amazon (15%)' },
+        walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
         poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
         stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
     },
     electronics: {
         ebay: { rate: 0.0935, fixed: 0.30, label: 'eBay (~9.35% + $0.30)' },
         amazon: { rate: 0.08, fixed: 0.00, label: 'Amazon (8%)' },
+        walmart: { rate: 0.08, fixed: 0.00, label: 'Walmart (8%)' },
         poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
         stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
     },
     apparel: {
         ebay: { rate: 0.15, fixed: 0.30, label: 'eBay (15% + $0.30)' },
         amazon: { rate: 0.17, fixed: 0.00, label: 'Amazon (17%)' },
+        walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
         poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
         stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
     },
     media: {
         ebay: { rate: 0.146, fixed: 0.30, label: 'eBay (14.6% + $0.30)' },
         amazon: { rate: 0.15, fixed: 1.80, label: 'Amazon (15% + $1.80)' },
+        walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
         poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
         stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
     }
@@ -393,6 +398,7 @@ exportCsvBtn.addEventListener('click', () => {
         "Best ROI (%)",
         "eBay Net Profit ($)",
         "Amazon Net Profit ($)",
+        "Walmart Net Profit ($)",
         "Poshmark Net Profit ($)",
         "Direct/Stripe Net Profit ($)"
     ];
@@ -406,6 +412,7 @@ exportCsvBtn.addEventListener('click', () => {
     const rows = list.map(item => {
         const ebayP = item.breakdown?.ebay?.profit !== undefined ? item.breakdown.ebay.profit.toFixed(2) : 'N/A';
         const amazonP = item.breakdown?.amazon?.profit !== undefined ? item.breakdown.amazon.profit.toFixed(2) : 'N/A';
+        const walmartP = item.breakdown?.walmart?.profit !== undefined ? item.breakdown.walmart.profit.toFixed(2) : 'N/A';
         const poshP = item.breakdown?.poshmark?.profit !== undefined ? item.breakdown.poshmark.profit.toFixed(2) : 'N/A';
         const stripeP = item.breakdown?.stripe?.profit !== undefined ? item.breakdown.stripe.profit.toFixed(2) : 'N/A';
 
@@ -423,6 +430,7 @@ exportCsvBtn.addEventListener('click', () => {
             item.bestRoi.toFixed(0),
             ebayP,
             amazonP,
+            walmartP,
             poshP,
             stripeP
         ].join(',');
@@ -531,15 +539,23 @@ scrapeBtn.addEventListener('click', async () => {
 
 function applyScrapedData(data) {
     if (data.price !== undefined && data.price !== null) {
-        sellPriceInput.value = data.price.toFixed(2);
+        const floatPrice = parseFloat(data.price);
+        if (!isNaN(floatPrice) && floatPrice > 0) {
+            sellPriceInput.value = floatPrice.toFixed(2);
+            sellPriceInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
     }
     if (data.shipping !== undefined && data.shipping !== null) {
-        shippingInput.value = data.shipping.toFixed(2);
+        const floatShip = parseFloat(data.shipping);
+        shippingInput.value = (!isNaN(floatShip) && floatShip >= 0 ? floatShip : 0).toFixed(2);
+        shippingInput.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
         shippingInput.value = '0.00';
+        shippingInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
     if (data.category && categorySelect) {
         categorySelect.value = data.category;
+        categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     currentScrapedUrl = data.url || '';
@@ -552,7 +568,7 @@ function applyScrapedData(data) {
 
     const shipInfo = data.shipping > 0 ? ` + $${data.shipping.toFixed(2)} ship` : ' (Free Ship)';
     const shortTitle = data.title ? ` (${data.title.substring(0, 22)}...)` : '';
-    showStatus(`✅ Scraped: $${data.price.toFixed(2)}${shipInfo}${shortTitle}`, 'status-success');
+    showStatus(`✅ Scraped: $${parseFloat(data.price).toFixed(2)}${shipInfo}${shortTitle}`, 'status-success');
     calculate();
 }
 
@@ -561,15 +577,22 @@ function extractListingDataFromDOM() {
     try {
         const url = (window.location && window.location.href ? window.location.href : '');
         const urlLower = url.toLowerCase();
-        const isAmazon = urlLower.includes('amazon.');
-        const isEbay = urlLower.includes('ebay.');
-        const isPoshmark = urlLower.includes('poshmark.');
+        const hostname = (window.location && window.location.hostname ? window.location.hostname : '');
+        const isAmazon = hostname.includes('amazon.') || urlLower.includes('amazon.');
+        const isEbay = hostname.includes('ebay.') || urlLower.includes('ebay.');
+        const isPoshmark = hostname.includes('poshmark.') || urlLower.includes('poshmark.');
+        const isWalmart = hostname.includes('walmart.') || urlLower.includes('walmart.');
 
         const cleanPrice = (str) => {
-            if (!str) return null;
-            if (typeof str === 'number') return str > 0 ? str : null;
-            const cleanStr = String(str).replace(/,/g, '').trim();
-            const match = cleanStr.match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
+            if (str === null || str === undefined) return null;
+            if (typeof str === 'number') return str > 0 ? parseFloat(str) : null;
+            // Clean extracted strings: remove $, USD, commas, and extra whitespace
+            const cleanStr = String(str)
+                .replace(/USD/gi, '')
+                .replace(/[$,]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const match = cleanStr.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
             if (match && match[1]) {
                 const val = parseFloat(match[1]);
                 return isNaN(val) || val <= 0 ? null : val;
@@ -738,195 +761,76 @@ function extractListingDataFromDOM() {
             return 'general';
         };
 
-        // --- POSHMARK SCRAPER ---
-        if (isPoshmark) {
-            let title = '';
-            let price = null;
-            let shipping = 0.00;
-            let categoryContext = '';
-
-            const nextScript = document.querySelector('#__NEXT_DATA__');
-            if (nextScript && nextScript.textContent) {
+        // Universal Fallback: Scan script[type="application/ld+json"] tags for standard schema entities
+        function scanUniversalSchema() {
+            let schemaTitle = '';
+            let schemaPrice = null;
+            const schemas = document.querySelectorAll('script[type="application/ld+json"]');
+            for (const s of schemas) {
                 try {
-                    const nextData = JSON.parse(nextScript.textContent);
-                    const pageProps = nextData && nextData.props && nextData.props.pageProps;
-                    const listing = pageProps && (pageProps.listing || pageProps.post);
-                    if (listing) {
-                        if (listing.title) title = listing.title;
-                        if (listing.price) price = cleanPrice(listing.price);
-                        if (listing.shipping_price) shipping = cleanPrice(listing.shipping_price) || 0;
-                        else if (listing.shipping_rate) shipping = cleanPrice(listing.shipping_rate) || 0;
-                        else if (listing.shipping_fee) shipping = cleanPrice(listing.shipping_fee) || 0;
+                    if (!s.textContent) continue;
+                    const parsed = JSON.parse(s.textContent);
+                    const queue = Array.isArray(parsed) ? [...parsed] : [parsed];
+                    while (queue.length > 0) {
+                        const item = queue.shift();
+                        if (!item || typeof item !== 'object') continue;
 
-                        const getFieldText = (f) => {
-                            if (!f) return '';
-                            if (typeof f === 'string') return f;
-                            if (typeof f === 'object') return f.display || f.name || f.title || f.label || '';
-                            return String(f);
-                        };
-                        categoryContext += ` ${getFieldText(listing.department)}`;
-                        categoryContext += ` ${getFieldText(listing.category)}`;
-                        categoryContext += ` ${getFieldText(listing.sub_category)}`;
-                        if (listing.brand) categoryContext += ` ${getFieldText(listing.brand)}`;
-                        if (listing.tags) categoryContext += ` ${Array.isArray(listing.tags) ? listing.tags.map(getFieldText).join(' ') : getFieldText(listing.tags)}`;
-                        if (listing.description) categoryContext += ` ${listing.description.substring(0, 300)}`;
-                    }
-                } catch (e) {}
-            }
+                        if (Array.isArray(item['@graph'])) {
+                            queue.push(...item['@graph']);
+                        }
 
-            if (!price || !title) {
-                const schemas = document.querySelectorAll('script[type="application/ld+json"]');
-                for (const s of schemas) {
-                    try {
-                        const parsed = JSON.parse(s.textContent);
-                        const items = Array.isArray(parsed) ? parsed : (parsed && parsed['@graph'] ? parsed['@graph'] : [parsed]);
-                        for (const item of items) {
-                            if (item && (item['@type'] === 'Product' || item.offers || item.name)) {
-                                if (!title && item.name) title = item.name;
-                                if (!price && item.offers) {
-                                    const pVal = Array.isArray(item.offers) ? item.offers[0].price : item.offers.price;
-                                    if (pVal) price = cleanPrice(pVal);
+                        if (!schemaTitle && typeof item.name === 'string' && item.name.trim()) {
+                            schemaTitle = item.name.trim();
+                        }
+
+                        if (!schemaPrice && (item.price !== undefined && item.price !== null)) {
+                            schemaPrice = cleanPrice(item.price);
+                        }
+
+                        if (!schemaPrice && item.offers) {
+                            if (Array.isArray(item.offers)) {
+                                for (const off of item.offers) {
+                                    if (off && (off.price !== undefined || off.lowPrice !== undefined)) {
+                                        schemaPrice = cleanPrice(off.price !== undefined ? off.price : off.lowPrice);
+                                        if (schemaPrice) break;
+                                    }
                                 }
-                                if (item.category) categoryContext += ` ${item.category}`;
+                            } else if (typeof item.offers === 'object') {
+                                schemaPrice = cleanPrice(item.offers.price !== undefined ? item.offers.price : item.offers.lowPrice);
                             }
                         }
-                    } catch (e) {}
-                }
-            }
 
-            if (!title) {
-                const ogTitle = document.querySelector('meta[property="og:title"]') || document.querySelector('meta[name="twitter:title"]');
-                if (ogTitle && ogTitle.content) title = ogTitle.content;
-            }
-            if (!price) {
-                const ogPrice = document.querySelector('meta[property="product:price:amount"]') ||
-                                document.querySelector('meta[property="og:price:amount"]') ||
-                                document.querySelector('meta[name="twitter:data1"]');
-                if (ogPrice && ogPrice.content) price = cleanPrice(ogPrice.content);
-            }
-
-            if (!title) {
-                const titleEl = document.querySelector('h1.listing__title-large') ||
-                                document.querySelector('h1.listing__title') ||
-                                document.querySelector('[data-test="listing-title"]') ||
-                                document.querySelector('.listing__title') ||
-                                document.querySelector('h1');
-                if (titleEl && titleEl.textContent) title = titleEl.textContent.trim().replace(/\s+/g, ' ');
-                else title = document.title.replace(/\s*-\s*poshmark/i, '').trim();
-            }
-
-            if (!price) {
-                const priceSelectors = [
-                    '.listing__price',
-                    '[data-test="listing-price"]',
-                    '.listing__inventory-info .listing__price',
-                    'p.h1.listing__price',
-                    '.listing__price-info',
-                    '[data-testid="listing-price"]',
-                    'span.price',
-                    'div.listing__title-container .price',
-                    'p.h1'
-                ];
-                for (const sel of priceSelectors) {
-                    const el = document.querySelector(sel);
-                    if (el && el.textContent) {
-                        const parsed = cleanPrice(el.textContent);
-                        if (parsed && parsed > 0) {
-                            price = parsed;
-                            break;
-                        }
+                        if (schemaTitle && schemaPrice) break;
                     }
-                }
+                } catch (e) {}
+                if (schemaTitle && schemaPrice) break;
             }
-
-            // Poshmark Shipping Detection
-            let foundShipping = null;
-            const poshShippingSelectors = [
-                '.listing__shipping-info',
-                '[data-test="shipping-info"]',
-                '.shipping-discount-text',
-                '[data-test="shipping-discount"]',
-                '.listing__policy-info',
-                '.shipping-banner',
-                'div.listing__shipping',
-                'p.listing__shipping',
-                'span[class*="shipping"]',
-                'div[class*="shipping"]'
-            ];
-
-            for (const sel of poshShippingSelectors) {
-                const el = document.querySelector(sel);
-                if (el && el.textContent) {
-                    const parsed = parseShippingText(el.textContent);
-                    if (parsed !== null) {
-                        foundShipping = parsed;
-                        break;
-                    }
-                }
-            }
-
-            if (foundShipping === null) {
-                const bodyText = document.body ? (document.body.innerText || document.body.textContent || '') : '';
-                const match = bodyText.match(/\$([0-9]+\.[0-9]{2})\s*(?:expedited\s*(?:\(1-3\s*day\))?\s*shipping|shipping\s*on\s*all\s*orders|standard\s*shipping)/i);
-                if (match && match[1]) {
-                    foundShipping = parseFloat(match[1]);
-                }
-            }
-
-            if (foundShipping === null) {
-                const isCa = urlLower.includes('poshmark.ca');
-                foundShipping = isCa ? 13.49 : 7.97;
-            }
-
-            shipping = foundShipping;
-
-            // Gather breadcrumbs and tags for category context
-            const catEl = document.querySelector('.listing__category-tag') ||
-                          document.querySelector('.breadcrumbs') ||
-                          document.querySelector('.listing__header-category') ||
-                          document.querySelector('.listing__categories');
-            if (catEl && catEl.textContent) {
-                categoryContext += ` ${catEl.textContent}`;
-            }
-
-            // Run smart category detection
-            const category = detectCategory(title, categoryContext, 'Poshmark');
-
-            return { foundPage: true, platform: 'Poshmark', title: title || 'Poshmark Listing', price, shipping, category, url };
+            return { title: schemaTitle, price: schemaPrice };
         }
 
-        // --- AMAZON SCRAPER ---
-        if (isAmazon) {
+        // --- POSHMARK SCRAPER ---
+        if (isPoshmark) {
+            // Title Selectors: h1.listing__title, [data-test="listing-title"]
             let title = '';
-            const titleEl = document.querySelector('#productTitle') || 
-                            document.querySelector('#title') ||
-                            document.querySelector('h1.a-size-large');
+            const titleEl = document.querySelector('h1.listing__title') ||
+                            document.querySelector('[data-test="listing-title"]') ||
+                            document.querySelector('h1.listing__title-large') ||
+                            document.querySelector('.listing__title');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
-            } else {
-                title = document.title.replace(/amazon(\.[a-z]+)?\s*:\s*/i, '').trim();
             }
 
+            // Price Selectors:
+            // 1. p.p--t--1.fw--bold
+            // 2. [data-test="listing-price"]
+            // 3. .listing__price
             let price = null;
-            const amazonPriceSelectors = [
-                '#corePriceDisplay_desktop_feature_div span.a-price span.a-offscreen',
-                '#corePrice_feature_div span.a-price span.a-offscreen',
-                '#corePrice_desktop span.a-price span.a-offscreen',
-                '#apex_desktop span.a-price span.a-offscreen',
-                'span.priceToPay span.a-offscreen',
-                '#priceblock_ourprice',
-                '#priceblock_dealprice',
-                '#priceblock_saleprice',
-                '#price_inside_buybox',
-                '#newBuyBoxPrice',
-                '#sns-base-price',
-                '#snsBuyBoxPrice',
-                '#tp_price_block_total_price_ww span.a-offscreen',
-                'span.a-price.aok-align-center span.a-offscreen',
-                '.a-price span.a-offscreen'
+            const poshPriceSelectors = [
+                'p.p--t--1.fw--bold',
+                '[data-test="listing-price"]',
+                '.listing__price'
             ];
-
-            for (const sel of amazonPriceSelectors) {
+            for (const sel of poshPriceSelectors) {
                 const el = document.querySelector(sel);
                 if (el && el.textContent) {
                     const parsed = cleanPrice(el.textContent);
@@ -937,27 +841,146 @@ function extractListingDataFromDOM() {
                 }
             }
 
-            if (!price) {
-                const wholeEl = document.querySelector('.a-price-whole') || document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-whole');
-                const fracEl = document.querySelector('.a-price-fraction') || document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction');
-                if (wholeEl && wholeEl.textContent) {
-                    const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
-                    const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
-                    const parsed = parseFloat(`${wholeStr}.${fracStr}`);
-                    if (!isNaN(parsed) && parsed > 0) price = parsed;
+            let shipping = 0.00;
+            let categoryContext = '';
+
+            // Next.js fallback if not in DOM
+            if (!price || !title) {
+                const nextScript = document.querySelector('#__NEXT_DATA__');
+                if (nextScript && nextScript.textContent) {
+                    try {
+                        const nextData = JSON.parse(nextScript.textContent);
+                        const pageProps = nextData && nextData.props && nextData.props.pageProps;
+                        const listing = pageProps && (pageProps.listing || pageProps.post);
+                        if (listing) {
+                            if (!title) {
+                                if (listing.title) title = listing.title;
+                                else if (listing.name) title = listing.name;
+                            }
+                            if (!price) {
+                                if (listing.price) price = cleanPrice(listing.price);
+                                else if (listing.original_price) price = cleanPrice(listing.original_price);
+                            }
+                            if (listing.shipping_price) shipping = cleanPrice(listing.shipping_price) || 0;
+                            else if (listing.shipping_rate) shipping = cleanPrice(listing.shipping_rate) || 0;
+                            else if (listing.shipping_fee) shipping = cleanPrice(listing.shipping_fee) || 0;
+
+                            const getFieldText = (f) => {
+                                if (!f) return '';
+                                if (typeof f === 'string') return f;
+                                if (typeof f === 'object') return f.display || f.name || f.title || f.label || '';
+                                return String(f);
+                            };
+                            categoryContext += ` ${getFieldText(listing.department)}`;
+                            categoryContext += ` ${getFieldText(listing.category)}`;
+                            categoryContext += ` ${getFieldText(listing.sub_category)}`;
+                            if (listing.brand) categoryContext += ` ${getFieldText(listing.brand)}`;
+                        }
+                    } catch (e) {}
                 }
             }
 
-            if (!price) {
-                const schemas = document.querySelectorAll('script[type="application/ld+json"]');
-                for (const s of schemas) {
-                    try {
-                        const json = JSON.parse(s.textContent);
-                        if (json.offers && json.offers.price) {
-                            price = cleanPrice(json.offers.price);
-                            if (price) break;
+            // Poshmark Shipping Detection
+            if (shipping === 0) {
+                const poshShippingSelectors = [
+                    '.listing__shipping-info',
+                    '[data-test="shipping-info"]',
+                    '.shipping-discount-text',
+                    '[data-test="shipping-discount"]',
+                    '.listing__policy-info',
+                    'div.listing__shipping',
+                    'p.listing__shipping'
+                ];
+                for (const sel of poshShippingSelectors) {
+                    const el = document.querySelector(sel);
+                    if (el && el.textContent) {
+                        const parsed = parseShippingText(el.textContent);
+                        if (parsed !== null) {
+                            shipping = parsed;
+                            break;
                         }
-                    } catch (e) {}
+                    }
+                }
+            }
+            if (shipping === 0) {
+                shipping = urlLower.includes('poshmark.ca') ? 13.49 : 7.97;
+            }
+
+            const catEl = document.querySelector('.listing__category-tag') ||
+                          document.querySelector('.breadcrumbs') ||
+                          document.querySelector('.listing__header-category');
+            if (catEl && catEl.textContent) categoryContext += ` ${catEl.textContent}`;
+
+            // Universal Fallback (Schema / JSON-LD)
+            if (!price || !title) {
+                const schema = scanUniversalSchema();
+                if (!title && schema.title) title = schema.title;
+                if (!price && schema.price) price = schema.price;
+            }
+
+            if (!title) title = document.title ? document.title.replace(/\s*-\s*poshmark/i, '').trim() : 'Poshmark Listing';
+
+            const category = detectCategory(title, categoryContext, 'Poshmark');
+
+            // Sanitization & Event Trigger for #sellPrice if present in DOM
+            const hostSellPrice = document.getElementById('sellPrice');
+            if (hostSellPrice && price !== null && price > 0) {
+                const floatPrice = parseFloat(price);
+                hostSellPrice.value = floatPrice.toFixed(2);
+                hostSellPrice.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            return { foundPage: true, platform: 'Poshmark', title, price, shipping, category, url };
+        }
+
+        // --- AMAZON SCRAPER ---
+        if (isAmazon) {
+            // Title Selectors: #productTitle, h1#title
+            let title = '';
+            const titleEl = document.querySelector('#productTitle') || 
+                            document.querySelector('h1#title') ||
+                            document.querySelector('#title');
+            if (titleEl && titleEl.textContent) {
+                title = titleEl.textContent.trim().replace(/\s+/g, ' ');
+            }
+
+            // Price Selectors:
+            // 1. .a-price .a-offscreen (primary hidden clean value)
+            let price = null;
+            const primaryOffscreen = document.querySelector('.a-price .a-offscreen');
+            if (primaryOffscreen && primaryOffscreen.textContent) {
+                price = cleanPrice(primaryOffscreen.textContent);
+            }
+
+            // 2. #corePrice_feature_div .a-price .a-offscreen
+            if (!price) {
+                const coreOffscreen = document.querySelector('#corePrice_feature_div .a-price .a-offscreen');
+                if (coreOffscreen && coreOffscreen.textContent) {
+                    price = cleanPrice(coreOffscreen.textContent);
+                }
+            }
+
+            // 3. #corePriceDisplay_desktop_feature_div span.a-price-whole (paired with .a-price-fraction)
+            if (!price) {
+                const wholeEl = document.querySelector('#corePriceDisplay_desktop_feature_div span.a-price-whole') ||
+                                document.querySelector('.a-price-whole');
+                const fracEl = document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction') ||
+                               document.querySelector('.a-price-fraction');
+                if (wholeEl && wholeEl.textContent) {
+                    const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
+                    const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
+                    if (wholeStr) {
+                        price = cleanPrice(`${wholeStr}.${fracStr}`);
+                    }
+                }
+            }
+
+            // 4. #priceblock_ourprice, #priceblock_dealprice
+            if (!price) {
+                const fallbackEl = document.querySelector('#priceblock_ourprice') ||
+                                   document.querySelector('#priceblock_dealprice');
+                if (fallbackEl && fallbackEl.textContent) {
+                    price = cleanPrice(fallbackEl.textContent);
                 }
             }
 
@@ -969,65 +992,58 @@ function extractListingDataFromDOM() {
                 if (parsedCsa !== null) shipping = parsedCsa;
             }
 
-            if (shipping === 0) {
-                const amazonShippingSelectors = [
-                    '#mir-layout-DELIVERY_BLOCK',
-                    '#deliveryBlockMessage',
-                    '#dynamic-delivery-message',
-                    '#amazonGlobal_feature_div',
-                    '#price-shipping-message',
-                    '#ourprice_shippingmessage',
-                    '#fast-track-message',
-                    '#delivery-message',
-                    '#FREE_DELIVERY',
-                    '#buybox-see-all-buying-choices',
-                    '.shipping3p',
-                    '#deliveryRow'
-                ];
-
-                for (const sel of amazonShippingSelectors) {
-                    const el = document.querySelector(sel);
-                    if (el && el.textContent) {
-                        const parsedShip = parseShippingText(el.textContent);
-                        if (parsedShip !== null) {
-                            shipping = parsedShip;
-                            break;
-                        }
-                    }
-                }
-            }
-
             let breadcrumbsText = '';
             const breadcrumbs = document.querySelector('#wayfinding-breadcrumbs_container');
             if (breadcrumbs && breadcrumbs.textContent) {
                 breadcrumbsText = breadcrumbs.textContent;
             }
 
+            // Universal Fallback (Schema / JSON-LD)
+            if (!price || !title) {
+                const schema = scanUniversalSchema();
+                if (!title && schema.title) title = schema.title;
+                if (!price && schema.price) price = schema.price;
+            }
+
+            if (!title && document.title) title = document.title.replace(/amazon(\.[a-z]+)?\s*:\s*/i, '').trim();
+
             const category = detectCategory(title, breadcrumbsText, 'Amazon');
+
+            // Sanitization & Event Trigger for #sellPrice if present in DOM
+            const hostSellPrice = document.getElementById('sellPrice');
+            if (hostSellPrice && price !== null && price > 0) {
+                const floatPrice = parseFloat(price);
+                hostSellPrice.value = floatPrice.toFixed(2);
+                hostSellPrice.dispatchEvent(new Event('input', { bubbles: true }));
+            }
 
             return { foundPage: true, platform: 'Amazon', title, price, shipping, category, url };
         }
 
         // --- EBAY SCRAPER ---
         if (isEbay) {
+            // Title Selectors: h1.x-item-title__mainTitle .ux-textspans, h1#itemTitle
             let title = '';
-            const titleEl = document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
-                            document.querySelector('#itemTitle') ||
-                            document.querySelector('h1.x-item-title__mainTitle');
+            const titleEl = document.querySelector('h1.x-item-title__mainTitle .ux-textspans') ||
+                            document.querySelector('h1#itemTitle') ||
+                            document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
+                            document.querySelector('#itemTitle');
             if (titleEl && titleEl.textContent) {
-                title = titleEl.textContent.trim().replace(/^details about\s*/i, '');
-            } else {
-                title = document.title.replace(/\s*\|\s*ebay/i, '').trim();
+                title = titleEl.textContent.trim().replace(/^details about\s*/i, '').replace(/\s+/g, ' ');
             }
 
+            // Price Selectors:
+            // 1. [data-testid="x-price-primary"] .ux-textspans
+            // 2. .x-bin-price__content .ux-textspans
+            // 3. #prcIsum, #mm-saleDscPrc
+            // 4. .main-price-val .ux-textspans
             let price = null;
             const ebayPriceSelectors = [
-                '.x-price-primary .ux-textspans',
-                '.x-bin-price__content .ux-textspans',
                 '[data-testid="x-price-primary"] .ux-textspans',
+                '.x-bin-price__content .ux-textspans',
                 '#prcIsum',
-                '[itemprop="price"]',
-                '.display-price'
+                '#mm-saleDscPrc',
+                '.main-price-val .ux-textspans'
             ];
             for (const sel of ebayPriceSelectors) {
                 const el = document.querySelector(sel);
@@ -1041,28 +1057,11 @@ function extractListingDataFromDOM() {
             }
 
             let shipping = 0.00;
-            const ebayShippingSelectors = [
-                '[data-testid="ux-labels-values--shipping"]',
-                '.ux-labels-values--shipping',
-                'div[data-testid="x-shipping-summary"]',
-                '.x-shipping-summary',
-                '.ux-labels-values__values-content',
-                '#fshippingCost',
-                '#sh-bin-shipping',
-                '.sh-inline-price',
-                '.x-shipping-cost',
-                '.val-shipping'
-            ];
-
-            for (const sel of ebayShippingSelectors) {
-                const el = document.querySelector(sel);
-                if (el && el.textContent) {
-                    const parsedShip = parseShippingText(el.textContent);
-                    if (parsedShip !== null) {
-                        shipping = parsedShip;
-                        break;
-                    }
-                }
+            const shipEl = document.querySelector('[data-testid="ux-labels-values--shipping"]') ||
+                           document.querySelector('.ux-labels-values--shipping');
+            if (shipEl) {
+                const parsedShip = parseShippingText(shipEl.textContent);
+                if (parsedShip !== null) shipping = parsedShip;
             }
 
             let catBreadcrumbsText = '';
@@ -1071,9 +1070,115 @@ function extractListingDataFromDOM() {
                 catBreadcrumbsText = catBreadcrumbs.textContent;
             }
 
+            // Universal Fallback (Schema / JSON-LD)
+            if (!price || !title) {
+                const schema = scanUniversalSchema();
+                if (!title && schema.title) title = schema.title;
+                if (!price && schema.price) price = schema.price;
+            }
+
+            if (!title && document.title) title = document.title.replace(/\s*\|\s*ebay/i, '').trim();
+
             const category = detectCategory(title, catBreadcrumbsText, 'eBay');
 
+            // Sanitization & Event Trigger for #sellPrice if present in DOM
+            const hostSellPrice = document.getElementById('sellPrice');
+            if (hostSellPrice && price !== null && price > 0) {
+                const floatPrice = parseFloat(price);
+                hostSellPrice.value = floatPrice.toFixed(2);
+                hostSellPrice.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
             return { foundPage: true, platform: 'eBay', title, price, shipping, category, url };
+        }
+
+        // --- WALMART SCRAPER ---
+        if (isWalmart) {
+            // Title Selectors: h1#main-title, h1[itemprop="name"]
+            let title = '';
+            const titleEl = document.querySelector('h1#main-title') ||
+                            document.querySelector('h1[itemprop="name"]') ||
+                            document.querySelector('#main-title') ||
+                            document.querySelector('h1');
+            if (titleEl && titleEl.textContent) {
+                title = titleEl.textContent.trim().replace(/\s+/g, ' ');
+            }
+
+            // Price Selectors:
+            // 1. span[itemprop="price"]
+            // 2. [data-testid="price-wrap"] span
+            // 3. span.inline-flex.flex-column
+            let price = null;
+            const walmartPriceSelectors = [
+                'span[itemprop="price"]',
+                '[data-testid="price-wrap"] span',
+                'span.inline-flex.flex-column'
+            ];
+
+            for (const sel of walmartPriceSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    const parsed = cleanPrice(el.textContent);
+                    if (parsed && parsed > 0) {
+                        price = parsed;
+                        break;
+                    }
+                }
+            }
+
+            let shipping = 0.00;
+            const shipEl = document.querySelector('[data-testid="fulfillment-shipping"]') || document.querySelector('[data-testid="shipping-info"]');
+            if (shipEl && shipEl.textContent) {
+                const parsedShip = parseShippingText(shipEl.textContent);
+                if (parsedShip !== null) shipping = parsedShip;
+            }
+
+            let catBreadcrumbsText = '';
+            const catBreadcrumbs = document.querySelector('nav[aria-label="breadcrumb"]') || document.querySelector('.breadcrumb');
+            if (catBreadcrumbs && catBreadcrumbs.textContent) {
+                catBreadcrumbsText = catBreadcrumbs.textContent;
+            }
+
+            // Universal Fallback (Schema / JSON-LD)
+            if (!price || !title) {
+                const schema = scanUniversalSchema();
+                if (!title && schema.title) title = schema.title;
+                if (!price && schema.price) price = schema.price;
+            }
+
+            if (!title && document.title) title = document.title.replace(/\s*-\s*Walmart\.com/i, '').trim();
+
+            const category = detectCategory(title, catBreadcrumbsText, 'Walmart');
+
+            // Sanitization & Event Trigger for #sellPrice if present in DOM
+            const hostSellPrice = document.getElementById('sellPrice');
+            if (hostSellPrice && price !== null && price > 0) {
+                const floatPrice = parseFloat(price);
+                hostSellPrice.value = floatPrice.toFixed(2);
+                hostSellPrice.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            return { foundPage: true, platform: 'Walmart', title, price, shipping, category, url };
+        }
+
+        // Generic platform Universal Fallback
+        const genericSchema = scanUniversalSchema();
+        if (genericSchema.price || genericSchema.title) {
+            const hostSellPrice = document.getElementById('sellPrice');
+            if (hostSellPrice && genericSchema.price !== null && genericSchema.price > 0) {
+                const floatPrice = parseFloat(genericSchema.price);
+                hostSellPrice.value = floatPrice.toFixed(2);
+                hostSellPrice.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            return {
+                foundPage: true,
+                platform: 'Web',
+                title: genericSchema.title || document.title,
+                price: genericSchema.price,
+                shipping: 0,
+                category: 'general',
+                url
+            };
         }
 
         return { foundPage: false, platform: null, price: null };

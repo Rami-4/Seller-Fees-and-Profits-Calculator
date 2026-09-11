@@ -10,6 +10,7 @@
     const PLATFORMS_META = [
         { id: 'ebay', baseName: 'eBay', desc: 'Category-specific final value fee + $0.30' },
         { id: 'amazon', baseName: 'Amazon', desc: 'Category referral fee (+ closing fee for media)' },
+        { id: 'walmart', baseName: 'Walmart', desc: '15% referral fee (8% for electronics), $0.00 fixed' },
         { id: 'poshmark', baseName: 'Poshmark', desc: '20.00% flat sales fee' },
         { id: 'stripe', baseName: 'Direct / Stripe', desc: '2.90% + $0.30 payment fee' }
     ];
@@ -18,24 +19,28 @@
         general: {
             ebay: { rate: 0.1325, fixed: 0.30, label: 'eBay (~13.25% + $0.30)' },
             amazon: { rate: 0.15, fixed: 0.00, label: 'Amazon (15%)' },
+            walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
         },
         electronics: {
             ebay: { rate: 0.0935, fixed: 0.30, label: 'eBay (~9.35% + $0.30)' },
             amazon: { rate: 0.08, fixed: 0.00, label: 'Amazon (8%)' },
+            walmart: { rate: 0.08, fixed: 0.00, label: 'Walmart (8%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
         },
         apparel: {
             ebay: { rate: 0.15, fixed: 0.30, label: 'eBay (15% + $0.30)' },
             amazon: { rate: 0.17, fixed: 0.00, label: 'Amazon (17%)' },
+            walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
         },
         media: {
             ebay: { rate: 0.146, fixed: 0.30, label: 'eBay (14.6% + $0.30)' },
             amazon: { rate: 0.15, fixed: 1.80, label: 'Amazon (15% + $1.80)' },
+            walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
         }
@@ -47,7 +52,7 @@
     const MAX_SOURCING_ITEMS = 50;
 
     let proCache = false; // Free tier by default
-    let storesCache = { ebay: true, amazon: true, poshmark: true, stripe: true };
+    let storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true };
     let sourcingCache = [];
 
     function syncFromStorage() {
@@ -58,7 +63,7 @@
                         proCache = res[PRO_STORAGE_KEY] === true || res[PRO_STORAGE_KEY] === 'true';
                     }
                     if (res[STORAGE_KEY] && typeof res[STORAGE_KEY] === 'object') {
-                        storesCache = { ...res[STORAGE_KEY] };
+                        storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...res[STORAGE_KEY] };
                     }
                     if (Array.isArray(res[SOURCING_STORAGE_KEY])) {
                         sourcingCache = [...res[SOURCING_STORAGE_KEY]];
@@ -75,7 +80,7 @@
             } catch(e){}
             try {
                 const s = localStorage.getItem(STORAGE_KEY);
-                if (s) storesCache = JSON.parse(s);
+                if (s) storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...JSON.parse(s) };
             } catch(e){}
             try {
                 const l = localStorage.getItem(SOURCING_STORAGE_KEY);
@@ -92,7 +97,7 @@
                     proCache = changes[PRO_STORAGE_KEY].newValue === true || changes[PRO_STORAGE_KEY].newValue === 'true';
                 }
                 if (changes[STORAGE_KEY] && changes[STORAGE_KEY].newValue) {
-                    storesCache = { ...changes[STORAGE_KEY].newValue };
+                    storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...changes[STORAGE_KEY].newValue };
                 }
                 if (changes[SOURCING_STORAGE_KEY] && Array.isArray(changes[SOURCING_STORAGE_KEY].newValue)) {
                     sourcingCache = [...changes[SOURCING_STORAGE_KEY].newValue];
@@ -139,10 +144,15 @@
     }
 
     const cleanPrice = (str) => {
-        if (!str && str !== 0) return null;
-        if (typeof str === 'number') return str > 0 ? str : null;
-        const cleanStr = String(str).replace(/,/g, '').trim();
-        const match = cleanStr.match(/\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/);
+        if (str === null || str === undefined) return null;
+        if (typeof str === 'number') return str > 0 ? parseFloat(str) : null;
+        // Clean extracted strings: remove $, USD, commas, and extra whitespace
+        const cleanStr = String(str)
+            .replace(/USD/gi, '')
+            .replace(/[$,]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const match = cleanStr.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
         if (match && match[1]) {
             const val = parseFloat(match[1]);
             return isNaN(val) || val <= 0 ? null : val;
@@ -178,148 +188,114 @@
         return 'general';
     };
 
+    // Universal Fallback: Scan script[type="application/ld+json"] tags for standard schema entities
+    function scanUniversalSchema() {
+        let schemaTitle = '';
+        let schemaPrice = null;
+        const schemas = document.querySelectorAll('script[type="application/ld+json"]');
+        for (const s of schemas) {
+            try {
+                if (!s.textContent) continue;
+                const parsed = JSON.parse(s.textContent);
+                const queue = Array.isArray(parsed) ? [...parsed] : [parsed];
+                while (queue.length > 0) {
+                    const item = queue.shift();
+                    if (!item || typeof item !== 'object') continue;
+
+                    if (Array.isArray(item['@graph'])) {
+                        queue.push(...item['@graph']);
+                    }
+
+                    if (!schemaTitle && typeof item.name === 'string' && item.name.trim()) {
+                        schemaTitle = item.name.trim();
+                    }
+
+                    if (!schemaPrice && (item.price !== undefined && item.price !== null)) {
+                        schemaPrice = cleanPrice(item.price);
+                    }
+
+                    if (!schemaPrice && item.offers) {
+                        if (Array.isArray(item.offers)) {
+                            for (const off of item.offers) {
+                                if (off && (off.price !== undefined || off.lowPrice !== undefined)) {
+                                    schemaPrice = cleanPrice(off.price !== undefined ? off.price : off.lowPrice);
+                                    if (schemaPrice) break;
+                                }
+                            }
+                        } else if (typeof item.offers === 'object') {
+                            schemaPrice = cleanPrice(item.offers.price !== undefined ? item.offers.price : item.offers.lowPrice);
+                        }
+                    }
+
+                    if (schemaTitle && schemaPrice) break;
+                }
+            } catch (e) {}
+            if (schemaTitle && schemaPrice) break;
+        }
+        return { title: schemaTitle, price: schemaPrice };
+    }
+
     function scrapeCurrentListing() {
         const url = (window.location && window.location.href ? window.location.href : '');
         const urlLower = url.toLowerCase();
-        const isAmazon = urlLower.includes('amazon.');
-        const isEbay = urlLower.includes('ebay.');
-        const isPoshmark = urlLower.includes('poshmark.');
+        const hostname = (window.location && window.location.hostname ? window.location.hostname : '');
+        const isAmazon = hostname.includes('amazon.') || urlLower.includes('amazon.');
+        const isEbay = hostname.includes('ebay.') || urlLower.includes('ebay.');
+        const isPoshmark = hostname.includes('poshmark.') || urlLower.includes('poshmark.');
+        const isWalmart = hostname.includes('walmart.') || urlLower.includes('walmart.');
 
-        let platform = isPoshmark ? 'Poshmark' : (isAmazon ? 'Amazon' : (isEbay ? 'eBay' : 'Custom'));
+        let platform = isPoshmark ? 'Poshmark' : (isAmazon ? 'Amazon' : (isEbay ? 'eBay' : (isWalmart ? 'Walmart' : 'Custom')));
         let title = '';
         let price = null;
         let shipping = 0.00;
         let categoryContext = '';
 
-        if (isPoshmark) {
-            const nextScript = document.querySelector('#__NEXT_DATA__');
-            if (nextScript && nextScript.textContent) {
-                try {
-                    const nextData = JSON.parse(nextScript.textContent);
-                    const pp = nextData?.props?.pageProps;
-                    const listing = pp?.listing || pp?.post || pp?.item || pp?.data || pp?.initialReduxState?.listing;
-                    if (listing) {
-                        if (listing.title) title = listing.title;
-                        else if (listing.name) title = listing.name;
-
-                        if (listing.price_amount && listing.price_amount.val) price = cleanPrice(listing.price_amount.val);
-                        else if (listing.price) price = cleanPrice(listing.price);
-                        else if (listing.original_price) price = cleanPrice(listing.original_price);
-
-                        if (listing.shipping_price) shipping = cleanPrice(listing.shipping_price) || 0;
-                        else if (listing.shipping_rate) shipping = cleanPrice(listing.shipping_rate) || 0;
-                        else if (listing.shipping_fee) shipping = cleanPrice(listing.shipping_fee) || 0;
-
-                        const getFieldText = (f) => (typeof f === 'object' ? f.display || f.name || f.title || '' : String(f || ''));
-                        categoryContext += ` ${getFieldText(listing.department)} ${getFieldText(listing.category)} ${getFieldText(listing.sub_category)} ${listing.description || ''}`;
-                    }
-                } catch (e) {}
+        if (isAmazon) {
+            // Title Selectors: #productTitle, h1#title
+            const titleEl = document.querySelector('#productTitle') ||
+                            document.querySelector('h1#title') ||
+                            document.querySelector('#title');
+            if (titleEl && titleEl.textContent) {
+                title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
 
-            if (!price || !title) {
-                const schemas = document.querySelectorAll('script[type="application/ld+json"]');
-                for (const s of schemas) {
-                    try {
-                        const parsed = JSON.parse(s.textContent);
-                        const items = Array.isArray(parsed) ? parsed : (parsed && parsed['@graph'] ? parsed['@graph'] : [parsed]);
-                        for (const item of items) {
-                            if (item && (item['@type'] === 'Product' || item.offers || item.name)) {
-                                if (!title && item.name) title = item.name;
-                                if (!price && item.offers) {
-                                    const pVal = Array.isArray(item.offers) ? item.offers[0].price : (item.offers.price || item.offers.lowPrice);
-                                    if (pVal) price = cleanPrice(pVal);
-                                }
-                                if (item.category) categoryContext += ` ${item.category}`;
-                            }
-                        }
-                    } catch (e) {}
-                }
+            // Price Selectors:
+            // 1. .a-price .a-offscreen (primary hidden clean value)
+            const offscreenEl = document.querySelector('.a-price .a-offscreen');
+            if (offscreenEl && offscreenEl.textContent) {
+                price = cleanPrice(offscreenEl.textContent);
             }
 
-            if (!title) {
-                const ogTitle = document.querySelector('meta[property="og:title"]') || document.querySelector('meta[name="twitter:title"]');
-                if (ogTitle && ogTitle.content) title = ogTitle.content;
-            }
+            // 2. #corePrice_feature_div .a-price .a-offscreen
             if (!price) {
-                const ogPrice = document.querySelector('meta[property="product:price:amount"]') ||
-                                document.querySelector('meta[property="og:price:amount"]') ||
-                                document.querySelector('meta[name="twitter:data1"]');
-                if (ogPrice && ogPrice.content) price = cleanPrice(ogPrice.content);
-            }
-
-            if (!title) {
-                const titleSelectors = [
-                    'h1.listing__title-large',
-                    'h1.listing__title',
-                    '[data-test="listing-title"]',
-                    '[data-testid="listing-title"]',
-                    '.listing__title',
-                    'div.listing__title-container h1',
-                    'header.listing-header h1',
-                    'h1'
-                ];
-                for (const sel of titleSelectors) {
-                    const el = document.querySelector(sel);
-                    if (el && el.textContent && el.textContent.trim()) {
-                        title = el.textContent.trim().replace(/\s+/g, ' ');
-                        break;
-                    }
-                }
-                if (!title) {
-                    title = document.title ? document.title.replace(/\s*-\s*poshmark/i, '').trim() : 'Poshmark Listing';
+                const coreOffscreenEl = document.querySelector('#corePrice_feature_div .a-price .a-offscreen');
+                if (coreOffscreenEl && coreOffscreenEl.textContent) {
+                    price = cleanPrice(coreOffscreenEl.textContent);
                 }
             }
 
+            // 3. #corePriceDisplay_desktop_feature_div span.a-price-whole (paired with .a-price-fraction)
             if (!price) {
-                const priceSelectors = [
-                    '[data-test="listing-price"]',
-                    '[data-testid="listing-price"]',
-                    'p.listing__price',
-                    'span.listing__price',
-                    '.listing__price',
-                    '.listing__inventory-info .listing__price',
-                    'div.listing__price-info',
-                    'span[data-et-name="listing_price"]',
-                    'p.h1.listing__price',
-                    'p.h1',
-                    'span.price',
-                    'div.listing__title-container .price',
-                    '.price',
-                    '[class*="listing__price"]',
-                    '[class*="price"]'
-                ];
-                for (const sel of priceSelectors) {
-                    const el = document.querySelector(sel);
-                    if (el && el.textContent) {
-                        const parsed = cleanPrice(el.textContent);
-                        if (parsed && parsed > 0) {
-                            price = parsed;
-                            break;
-                        }
+                const wholeEl = document.querySelector('#corePriceDisplay_desktop_feature_div span.a-price-whole') ||
+                                document.querySelector('.a-price-whole');
+                const fracEl = document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction') ||
+                               document.querySelector('.a-price-fraction');
+                if (wholeEl && wholeEl.textContent) {
+                    const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
+                    const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
+                    if (wholeStr) {
+                        price = cleanPrice(`${wholeStr}.${fracStr}`);
                     }
                 }
             }
 
-            if (shipping === 0) {
-                shipping = urlLower.includes('poshmark.ca') ? 13.49 : 7.97;
-            }
-        } else if (isAmazon) {
-            const titleEl = document.querySelector('#productTitle') || document.querySelector('#title');
-            if (titleEl) title = titleEl.textContent.trim();
-
-            const wholeEl = document.querySelector('.a-price-whole') || document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-whole');
-            const fracEl = document.querySelector('.a-price-fraction') || document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction');
-            if (wholeEl && wholeEl.textContent) {
-                const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
-                const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
-                price = parseFloat(`${wholeStr}.${fracStr}`);
-            }
-
+            // 4. #priceblock_ourprice, #priceblock_dealprice
             if (!price) {
-                const offscreenEl = document.querySelector('#corePriceDisplay_desktop_feature_div span.a-price span.a-offscreen') ||
-                                    document.querySelector('.a-price span.a-offscreen') ||
-                                    document.querySelector('#priceblock_ourprice');
-                if (offscreenEl) price = cleanPrice(offscreenEl.textContent);
+                const fallbackPriceEl = document.querySelector('#priceblock_ourprice') ||
+                                        document.querySelector('#priceblock_dealprice');
+                if (fallbackPriceEl && fallbackPriceEl.textContent) {
+                    price = cleanPrice(fallbackPriceEl.textContent);
+                }
             }
 
             const csaEl = document.querySelector('[data-csa-c-delivery-price]');
@@ -328,17 +304,155 @@
             const breadcrumbs = document.querySelector('#wayfinding-breadcrumbs_container');
             if (breadcrumbs) categoryContext += ` ${breadcrumbs.textContent}`;
         } else if (isEbay) {
-            const titleEl = document.querySelector('.x-item-title__mainTitle .ux-textspans') || document.querySelector('#itemTitle') || document.querySelector('h1');
-            if (titleEl) title = titleEl.textContent.trim().replace(/^details about\s*/i, '');
+            // Title Selectors: h1.x-item-title__mainTitle .ux-textspans, h1#itemTitle
+            const titleEl = document.querySelector('h1.x-item-title__mainTitle .ux-textspans') ||
+                            document.querySelector('h1#itemTitle') ||
+                            document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
+                            document.querySelector('#itemTitle');
+            if (titleEl && titleEl.textContent) {
+                title = titleEl.textContent.trim().replace(/^details about\s*/i, '').replace(/\s+/g, ' ');
+            }
 
-            const priceEl = document.querySelector('.x-price-primary .ux-textspans') || document.querySelector('#prcIsum') || document.querySelector('[itemprop="price"]');
-            if (priceEl) price = cleanPrice(priceEl.textContent);
+            // Price Selectors:
+            // 1. [data-testid="x-price-primary"] .ux-textspans
+            // 2. .x-bin-price__content .ux-textspans
+            // 3. #prcIsum, #mm-saleDscPrc
+            // 4. .main-price-val .ux-textspans
+            const ebayPriceSelectors = [
+                '[data-testid="x-price-primary"] .ux-textspans',
+                '.x-bin-price__content .ux-textspans',
+                '#prcIsum',
+                '#mm-saleDscPrc',
+                '.main-price-val .ux-textspans'
+            ];
+            for (const sel of ebayPriceSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    const parsed = cleanPrice(el.textContent);
+                    if (parsed && parsed > 0) {
+                        price = parsed;
+                        break;
+                    }
+                }
+            }
 
-            const shipEl = document.querySelector('[data-testid="ux-labels-values--shipping"]') || document.querySelector('.ux-labels-values--shipping');
+            const shipEl = document.querySelector('[data-testid="ux-labels-values--shipping"]') ||
+                           document.querySelector('.ux-labels-values--shipping');
             if (shipEl) shipping = parseShippingText(shipEl.textContent) || 0;
 
             const breadcrumbs = document.querySelector('.breadcrumbs') || document.querySelector('.seo-breadcrumb-text');
             if (breadcrumbs) categoryContext += ` ${breadcrumbs.textContent}`;
+        } else if (isPoshmark) {
+            // Title Selectors: h1.listing__title, [data-test="listing-title"]
+            const titleEl = document.querySelector('h1.listing__title') ||
+                            document.querySelector('[data-test="listing-title"]') ||
+                            document.querySelector('h1.listing__title-large') ||
+                            document.querySelector('.listing__title');
+            if (titleEl && titleEl.textContent) {
+                title = titleEl.textContent.trim().replace(/\s+/g, ' ');
+            }
+
+            // Price Selectors:
+            // 1. p.p--t--1.fw--bold
+            // 2. [data-test="listing-price"]
+            // 3. .listing__price
+            const poshPriceSelectors = [
+                'p.p--t--1.fw--bold',
+                '[data-test="listing-price"]',
+                '.listing__price'
+            ];
+            for (const sel of poshPriceSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    const parsed = cleanPrice(el.textContent);
+                    if (parsed && parsed > 0) {
+                        price = parsed;
+                        break;
+                    }
+                }
+            }
+
+            // Next.js __NEXT_DATA__ fallback for Poshmark
+            if (!price || !title) {
+                const nextScript = document.querySelector('#__NEXT_DATA__');
+                if (nextScript && nextScript.textContent) {
+                    try {
+                        const nextData = JSON.parse(nextScript.textContent);
+                        const pp = nextData?.props?.pageProps;
+                        const listing = pp?.listing || pp?.post || pp?.item || pp?.data || pp?.initialReduxState?.listing;
+                        if (listing) {
+                            if (!title) {
+                                if (listing.title) title = listing.title;
+                                else if (listing.name) title = listing.name;
+                            }
+                            if (!price) {
+                                if (listing.price_amount && listing.price_amount.val) price = cleanPrice(listing.price_amount.val);
+                                else if (listing.price) price = cleanPrice(listing.price);
+                                else if (listing.original_price) price = cleanPrice(listing.original_price);
+                            }
+                            if (listing.shipping_price) shipping = cleanPrice(listing.shipping_price) || 0;
+                            else if (listing.shipping_rate) shipping = cleanPrice(listing.shipping_rate) || 0;
+                            else if (listing.shipping_fee) shipping = cleanPrice(listing.shipping_fee) || 0;
+
+                            const getFieldText = (f) => (typeof f === 'object' ? f.display || f.name || f.title || '' : String(f || ''));
+                            categoryContext += ` ${getFieldText(listing.department)} ${getFieldText(listing.category)} ${getFieldText(listing.sub_category)} ${listing.description || ''}`;
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            if (shipping === 0) {
+                shipping = urlLower.includes('poshmark.ca') ? 13.49 : 7.97;
+            }
+        } else if (isWalmart) {
+            // Title Selectors: h1#main-title, h1[itemprop="name"]
+            const titleEl = document.querySelector('h1#main-title') ||
+                            document.querySelector('h1[itemprop="name"]') ||
+                            document.querySelector('#main-title') ||
+                            document.querySelector('h1');
+            if (titleEl && titleEl.textContent) {
+                title = titleEl.textContent.trim().replace(/\s+/g, ' ');
+            }
+
+            // Price Selectors:
+            // 1. span[itemprop="price"]
+            // 2. [data-testid="price-wrap"] span
+            // 3. span.inline-flex.flex-column
+            const walmartPriceSelectors = [
+                'span[itemprop="price"]',
+                '[data-testid="price-wrap"] span',
+                'span.inline-flex.flex-column'
+            ];
+            for (const sel of walmartPriceSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    const parsed = cleanPrice(el.textContent);
+                    if (parsed && parsed > 0) {
+                        price = parsed;
+                        break;
+                    }
+                }
+            }
+
+            const shipEl = document.querySelector('[data-testid="fulfillment-shipping"]') ||
+                           document.querySelector('[data-testid="shipping-info"]');
+            if (shipEl) shipping = parseShippingText(shipEl.textContent) || 0;
+
+            const breadcrumbs = document.querySelector('nav[aria-label="breadcrumb"]') || document.querySelector('.breadcrumb');
+            if (breadcrumbs && breadcrumbs.textContent) categoryContext += ` ${breadcrumbs.textContent}`;
+        }
+
+        // Universal Fallback (Schema / JSON-LD):
+        // If DOM selectors fail on any platform, scan script[type="application/ld+json"] tags
+        if (!price || !title) {
+            const schema = scanUniversalSchema();
+            if (!title && schema.title) title = schema.title;
+            if (!price && schema.price) price = schema.price;
+        }
+
+        // Final title fallback
+        if (!title && document.title) {
+            title = document.title.replace(/\s*[-|]\s*(amazon|ebay|poshmark|walmart).*$/i, '').trim();
         }
 
         const category = detectCategory(title, categoryContext);
@@ -616,9 +730,25 @@
                 const refreshed = scrapeCurrentListing();
                 if (refreshed && refreshed.price > 0) {
                     currentData = refreshed;
-                    sellPriceInp.value = refreshed.price.toFixed(2);
+                    const floatPrice = parseFloat(refreshed.price);
+                    
+                    // Insert into #sc-sellPrice and dispatch 'input' event so calculations update immediately
+                    sellPriceInp.value = floatPrice.toFixed(2);
+                    sellPriceInp.dispatchEvent(new Event('input', { bubbles: true }));
+
+                    // Also check for #sellPrice on the document if present and dispatch 'input'
+                    const hostSellPrice = document.getElementById('sellPrice');
+                    if (hostSellPrice && hostSellPrice !== sellPriceInp) {
+                        hostSellPrice.value = floatPrice.toFixed(2);
+                        hostSellPrice.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+
                     shippingInp.value = refreshed.shipping.toFixed(2);
+                    shippingInp.dispatchEvent(new Event('input', { bubbles: true }));
+
                     categorySelect.value = refreshed.category || 'general';
+                    categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+
                     const banner = container.querySelector('#sc-scrapedBanner');
                     if (banner) {
                         banner.style.display = 'flex';

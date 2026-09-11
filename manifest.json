@@ -16,12 +16,20 @@
     "downloads"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "*://*.amazon.com/*",
+    "*://*.ebay.com/*",
+    "*://*.poshmark.com/*",
+    "*://*.walmart.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "<all_urls>"
+        "<all_urls>",
+        "*://*.amazon.com/*",
+        "*://*.ebay.com/*",
+        "*://*.poshmark.com/*",
+        "*://*.walmart.com/*"
       ],
       "js": ["content.js"],
       "css": ["content.css"],
