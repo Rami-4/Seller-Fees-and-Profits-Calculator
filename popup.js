@@ -290,9 +290,9 @@ saveToSourcingBtn.addEventListener('click', async () => {
         return;
     }
 
-    const cost = parseFloat(costInput.value) || 0;
-    const sellPrice = parseFloat(sellPriceInput.value);
-    const shipping = parseFloat(shippingInput.value) || 0;
+    const cost = Math.max(0, parseFloat(costInput.value) || 0);
+    const sellPrice = Math.max(0, parseFloat(sellPriceInput.value) || 0);
+    const shipping = Math.max(0, parseFloat(shippingInput.value) || 0);
 
     if (isNaN(sellPrice) || sellPrice <= 0) {
         showStatus('⚠️ Please enter a valid selling price before saving.', 'status-warn');
@@ -628,7 +628,21 @@ function extractListingDataFromDOM() {
             const rawCombined = `${title || ''} ${extraText || ''}`.toLowerCase();
             const cleanCombined = rawCombined.replace(/[^a-z0-9\s-]/g, ' ');
 
-            // 1. Direct High-Confidence Taxonomy / Breadcrumb Classification
+            // 1. Direct High-Confidence Book & Media Taxonomy & Format Signals
+            const strongMediaSignals = [
+                'books & magazines', 'textbooks', 'books', 'book format', 'hardcover', 'paperback',
+                'mass market paperback', 'spiral-bound', 'isbn-10', 'isbn-13', 'isbn', '(author)',
+                'print length', 'reading age', 'kindle edition', 'kindle store', 'audiobook',
+                'audiobooks', 'music & cds', 'vinyl records', 'movies & tv', 'dvds & blu-ray',
+                'comic books', 'manga', 'graphic novel', 'graphic novels', 'bestsellers in books'
+            ];
+            for (const signal of strongMediaSignals) {
+                if (rawCombined.includes(signal)) {
+                    return 'media';
+                }
+            }
+
+            // 2. Direct High-Confidence Electronics Taxonomy
             const strongElectronicsSignals = [
                 'electronics', 'electronic', 'cell phones', 'cell phone', 'smartphone',
                 'computers', 'computer', 'laptops', 'laptop', 'tablets', 'tablet',
@@ -644,17 +658,7 @@ function extractListingDataFromDOM() {
                 }
             }
 
-            const strongMediaSignals = [
-                'books & magazines', 'textbooks', 'books', 'music & cds', 'vinyl records',
-                'movies & tv', 'dvds & blu-ray', 'audiobooks', 'comic books', 'manga'
-            ];
-            for (const signal of strongMediaSignals) {
-                if (rawCombined.includes(signal)) {
-                    return 'media';
-                }
-            }
-
-            // 2. Comprehensive Electronics & Tech Keyword Dictionary
+            // 3. Comprehensive Electronics & Tech Keyword Dictionary
             const electronicsKeywords = [
                 // Computing & Peripherals
                 'laptop', 'macbook', 'chromebook', 'desktop', 'computer', 'pc', 'monitor', 'display',
@@ -702,13 +706,16 @@ function extractListingDataFromDOM() {
                 'shark ninja', 'electronic', 'gadget', 'cordless', 'rechargeable', 'digital', 'infrared'
             ];
 
-            // 3. Comprehensive Media Keyword Dictionary
+            // 4. Comprehensive Media Keyword Dictionary
             const mediaKeywords = [
-                'book', 'books', 'hardcover', 'paperback', 'novel', 'textbook', 'comic', 'manga',
-                'graphic novel', 'dvd', 'blu-ray', 'bluray', '4k uhd', 'vhs', 'cassette', 'vinyl',
-                'record album', 'lp', 'cd', 'compact disc', 'audiobook', 'video game disc',
-                'game cartridge', 'movie', 'soundtrack', 'magazine', 'periodical', 'sheet music',
-                'playbill', 'score', 'anthology', 'audio cd'
+                'book', 'books', 'hardcover', 'paperback', 'novel', 'novels', 'textbook', 'textbooks',
+                'comic', 'comics', 'manga', 'graphic novel', 'graphic novels', 'dvd', 'dvds',
+                'blu-ray', 'bluray', '4k uhd', 'vhs', 'cassette', 'vinyl', 'record album', 'lp',
+                'cd', 'cds', 'compact disc', 'audiobook', 'audiobooks', 'video game disc',
+                'game cartridge', 'movie', 'movies', 'soundtrack', 'magazine', 'magazines',
+                'periodical', 'sheet music', 'playbill', 'score', 'anthology', 'audio cd',
+                'kindle', 'audible', 'author', 'isbn', 'isbn-10', 'isbn-13', 'publisher',
+                'print length', 'reading age', 'mass market paperback', 'spiral-bound'
             ];
 
             // 4. Comprehensive Apparel Keyword Dictionary
@@ -993,9 +1000,48 @@ function extractListingDataFromDOM() {
             }
 
             let breadcrumbsText = '';
-            const breadcrumbs = document.querySelector('#wayfinding-breadcrumbs_container');
-            if (breadcrumbs && breadcrumbs.textContent) {
-                breadcrumbsText = breadcrumbs.textContent;
+            const amazonCategorySelectors = [
+                '#wayfinding-breadcrumbs_container',
+                '#wayfinding-breadcrumbs_feature_div',
+                '.a-breadcrumb',
+                '#nav-subnav',
+                '#nav-search-dropdown-card',
+                '#searchDropdownBox option[selected]',
+                '#booksTitle',
+                '#books_feature_div',
+                '[data-feature-name="booksTitle"]',
+                '#productSubtitle',
+                '#bylineInfo',
+                '#bylineInfo_feature_div',
+                '.author',
+                '#tmmSwatches',
+                '#formatSelectorHeader',
+                '#detailBullets_feature_div',
+                '#detailBulletsWrapper_feature_div',
+                '#rpi-attribute-book_details-fiona_pages',
+                '#rpi-attribute-book_details-isbn13',
+                '#rpi-attribute-book_details-isbn10',
+                '#rpi-attribute-book_details-publication_date',
+                '#rpi-attribute-audiobook_details-release_date',
+                '#productDetailsTable'
+            ];
+            for (const sel of amazonCategorySelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    breadcrumbsText += ` ${el.textContent.trim().replace(/\s+/g, ' ')}`;
+                }
+            }
+
+            const ogType = document.querySelector('meta[property="og:type"]');
+            if (ogType && ogType.content && ogType.content.toLowerCase().includes('book')) {
+                breadcrumbsText += ' book media';
+            }
+
+            if (document.querySelector('a[href*="/bestsellers/books"]') ||
+                document.querySelector('a[href*="/Books/"]') ||
+                document.querySelector('a[href*="node=283155"]') ||
+                (window.location && window.location.href && /[\/=](283155|books|stripbooks)[\/?=&#]/i.test(window.location.href))) {
+                breadcrumbsText += ' books media';
             }
 
             // Universal Fallback (Schema / JSON-LD)
@@ -1245,9 +1291,9 @@ function initSettingsView() {
 
 // Dynamic Calculation
 function calculate() {
-    const cost = parseFloat(costInput.value) || 0;
-    const sellPrice = parseFloat(sellPriceInput.value);
-    const shipping = parseFloat(shippingInput.value) || 0;
+    const cost = Math.max(0, parseFloat(costInput.value) || 0);
+    const sellPrice = Math.max(0, parseFloat(sellPriceInput.value) || 0);
+    const shipping = Math.max(0, parseFloat(shippingInput.value) || 0);
     const selectedCategory = (categorySelect && categorySelect.value) || 'general';
     const categoryRates = CATEGORY_RATES[selectedCategory] || CATEGORY_RATES.general;
 
@@ -1333,8 +1379,101 @@ function debounce(fn, delay = 150) {
 
 const debouncedCalculate = debounce(calculate, 150);
 
+function restrictToPositiveNumbers(input) {
+    if (!input) return;
+
+    // 1. Block keydown for -, +, e, E, and duplicate decimal point
+    input.addEventListener('keydown', (e) => {
+        if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+            e.preventDefault();
+            return;
+        }
+        if (e.key === '.') {
+            const val = input.value || '';
+            const selStart = input.selectionStart;
+            const selEnd = input.selectionEnd;
+            const selectedText = (selStart !== null && selEnd !== null) ? val.slice(selStart, selEnd) : '';
+            if (val.includes('.') && !selectedText.includes('.')) {
+                e.preventDefault();
+                return;
+            }
+        }
+    });
+
+    // 2. Block beforeinput for mobile, virtual keyboards, drag-and-drop
+    input.addEventListener('beforeinput', (e) => {
+        if (e.data) {
+            if (/[-+eE]/.test(e.data)) {
+                e.preventDefault();
+                return;
+            }
+            if (e.data.includes('.')) {
+                const val = input.value || '';
+                const selStart = input.selectionStart;
+                const selEnd = input.selectionEnd;
+                const selectedText = (selStart !== null && selEnd !== null) ? val.slice(selStart, selEnd) : '';
+                if (val.includes('.') && !selectedText.includes('.')) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+        }
+    });
+
+    // 3. Intercept paste to clean any invalid numbers (e.g. -3-4, --4, ++4, +-9000)
+    input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const clipboardData = e.clipboardData || window.clipboardData;
+        const text = clipboardData ? clipboardData.getData('text') : '';
+        if (!text) return;
+
+        let clean = text.replace(/[^0-9.]/g, '');
+        const dotIndex = clean.indexOf('.');
+        if (dotIndex !== -1) {
+            clean = clean.slice(0, dotIndex + 1) + clean.slice(dotIndex + 1).replace(/\./g, '');
+        }
+
+        if (clean) {
+            const val = input.value || '';
+            const selStart = input.selectionStart !== null ? input.selectionStart : val.length;
+            const selEnd = input.selectionEnd !== null ? input.selectionEnd : val.length;
+            let combined = val.slice(0, selStart) + clean + val.slice(selEnd);
+            const firstDot = combined.indexOf('.');
+            if (firstDot !== -1) {
+                combined = combined.slice(0, firstDot + 1) + combined.slice(firstDot + 1).replace(/\./g, '');
+            }
+
+            const num = parseFloat(combined);
+            if (!isNaN(num) && num >= 0) {
+                input.value = combined;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+    });
+
+    // 4. Block drag and drop of text
+    input.addEventListener('drop', (e) => {
+        e.preventDefault();
+    });
+
+    // 5. On input event: clear bad input or negative numbers
+    input.addEventListener('input', () => {
+        if (input.validity && input.validity.badInput) {
+            input.value = '';
+            return;
+        }
+        if (input.value !== '') {
+            const val = parseFloat(input.value);
+            if (isNaN(val) || val < 0) {
+                input.value = '';
+            }
+        }
+    });
+}
+
 [costInput, sellPriceInput, shippingInput].forEach(input => {
     if (input) {
+        restrictToPositiveNumbers(input);
         input.addEventListener('input', debouncedCalculate);
     }
 });

@@ -180,11 +180,126 @@
         return null;
     };
 
-    const detectCategory = (title, extraText) => {
-        const raw = `${title || ''} ${extraText || ''}`.toLowerCase();
-        if (/(laptop|computer|phone|electronics|camera|gaming|console|audio|headphone|earbud|speaker|tv)/i.test(raw)) return 'electronics';
-        if (/(book|dvd|cd|vinyl|manga|media|novel|textbook)/i.test(raw)) return 'media';
-        if (/(shirt|shoes|apparel|clothing|dress|jacket|pants|sneaker|boots|purse|bag|sweater|hoodie)/i.test(raw)) return 'apparel';
+    const detectCategory = (title, extraText, platform) => {
+        const rawCombined = `${title || ''} ${extraText || ''}`.toLowerCase();
+        const cleanCombined = rawCombined.replace(/[^a-z0-9\s-]/g, ' ');
+
+        const hasKeyword = (keywords) => {
+            for (const kw of keywords) {
+                if (kw.includes(' ') || kw.includes('-') || kw.includes('&') || kw.includes('(')) {
+                    if (rawCombined.includes(kw) || cleanCombined.includes(kw.replace(/[^a-z0-9]/g, ' '))) {
+                        return true;
+                    }
+                } else {
+                    const regex = new RegExp(`(^|[^a-z0-9])${kw}([^a-z0-9]|$)`, 'i');
+                    if (regex.test(cleanCombined)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        // 1. Direct High-Confidence Book & Media Taxonomy & Format Signals
+        const strongMediaSignals = [
+            'books & magazines', 'textbooks', 'books', 'book format', 'hardcover', 'paperback',
+            'mass market paperback', 'spiral-bound', 'isbn-10', 'isbn-13', 'isbn', '(author)',
+            'print length', 'reading age', 'kindle edition', 'kindle store', 'audiobook',
+            'audiobooks', 'music & cds', 'vinyl records', 'movies & tv', 'dvds & blu-ray',
+            'comic books', 'manga', 'graphic novel', 'graphic novels', 'bestsellers in books'
+        ];
+        if (hasKeyword(strongMediaSignals)) {
+            return 'media';
+        }
+
+        // 2. Direct High-Confidence Electronics Taxonomy
+        const strongElectronicsSignals = [
+            'electronics', 'electronic', 'cell phones', 'cell phone', 'smartphone',
+            'computers', 'computer', 'laptops', 'laptop', 'tablets', 'tablet',
+            'audio & sound', 'audio', 'headphones', 'earbuds', 'speakers',
+            'cameras, camcorders & drones', 'cameras & photo', 'camera', 'drone',
+            'video games & consoles', 'video games', 'gaming console', 'smart home',
+            'wearables', 'wearable technology', 'car electronics', 'media players',
+            'home audio', 'portable audio', 'computer accessories', 'pc gaming'
+        ];
+        if (hasKeyword(strongElectronicsSignals)) {
+            return 'electronics';
+        }
+
+        // 3. Comprehensive Electronics & Tech Keyword Dictionary
+        const electronicsKeywords = [
+            'laptop', 'macbook', 'chromebook', 'desktop', 'computer', 'pc', 'monitor', 'display',
+            'gpu', 'cpu', 'processor', 'motherboard', 'ram', 'ssd', 'hdd', 'hard drive', 'flash drive',
+            'memory card', 'sd card', 'microsd', 'keyboard', 'keycap', 'mouse', 'trackpad', 'webcam',
+            'microphone', 'router', 'modem', 'wifi', 'ethernet', 'hub', 'dock', 'docking station',
+            'scanner', 'printer', 'toner', 'ink cartridge', 'projector', 'stylus', 'apple pencil',
+            'headphone', 'headphones', 'earbud', 'earbuds', 'airpod', 'airpods', 'headset', 'earphone',
+            'earphones', 'speaker', 'speakers', 'soundbar', 'subwoofer', 'amplifier', 'amp', 'dac',
+            'bluetooth', 'wireless', 'tws', 'noise canceling', 'noise cancelling', 'over-ear', 'in-ear',
+            'walkman', 'ipod', 'mp3 player', 'boombox', 'soundcore',
+            'phone', 'smartphone', 'iphone', 'android', 'samsung galaxy', 'pixel', 'ipad', 'tablet',
+            'smartwatch', 'smart watch', 'apple watch', 'fitbit', 'garmin', 'whoop', 'smart ring',
+            'aura ring', 'fitness tracker',
+            'camera', 'dslr', 'mirrorless', 'camcorder', 'gopro', 'action cam', 'drone', 'quadcopter',
+            'lens', 'tripod', 'gimbal', 'stabilizer', 'ring light', 'softbox', 'flash', 'speedlite',
+            'dash cam', 'security camera', 'cctv', 'ring doorbell', 'nest cam',
+            'playstation', 'ps5', 'ps4', 'ps3', 'ps2', 'psp', 'ps vita', 'xbox', 'xbox series', 'xbox one',
+            'nintendo', 'switch', 'joy-con', 'joycon', 'wii', 'gamecube', 'gameboy', '3ds', '2ds',
+            'steam deck', 'rog ally', 'legion go', 'vr headset', 'meta quest', 'oculus', 'htc vive',
+            'pico vr', 'controller', 'gamepad', 'joystick', 'arcade stick',
+            'charger', 'charging', 'fast charger', 'power bank', 'portable charger', 'battery pack',
+            'magsafe', 'wireless charger', 'usb-c', 'type-c', 'lightning cable', 'hdmi', 'displayport',
+            'ac adapter', 'power adapter', 'surge protector', 'power strip', 'inverter',
+            'electric razor', 'shaver', 'razor', 'trimmer', 'beard trimmer', 'hair clipper', 'clippers',
+            'hair dryer', 'blow dryer', 'straightener', 'curling iron', 'curling wand', 'hot air brush',
+            'electric toothbrush', 'sonicare', 'oral-b', 'water flosser', 'epilator', 'massage gun',
+            'electric massager', 'heating pad', 'treadmill', 'pedometer',
+            'smart home', 'alexa', 'echo dot', 'echo show', 'google home', 'nest', 'smart plug',
+            'smart bulb', 'led strip', 'smart light', 'tv', 'television', 'oled', 'qled', '4k tv',
+            'roku', 'fire tv', 'firestick', 'chromecast', 'apple tv', 'remote control', 'robot vacuum',
+            'roomba', 'air purifier', 'dehumidifier', 'humidifier', 'thermostat',
+            'apple', 'sony', 'bose', 'sennheiser', 'audio-technica', 'jbl', 'beats', 'anker',
+            'belkin', 'logitech', 'razer', 'corsair', 'steelseries', 'hyperx', 'elgato', 'dji',
+            'insta360', 'canon', 'nikon', 'fujifilm', 'panasonic lumix', 'asus', 'acer', 'dell',
+            'lenovo', 'thinkpad', 'alienware', 'msi', 'braun', 'norelco', 'philips norelco', 'dyson',
+            'shark ninja', 'electronic', 'gadget', 'cordless', 'rechargeable', 'digital', 'infrared'
+        ];
+        if (hasKeyword(electronicsKeywords)) {
+            return 'electronics';
+        }
+
+        // 4. Comprehensive Media & Book Keyword Dictionary
+        const mediaKeywords = [
+            'book', 'books', 'hardcover', 'paperback', 'novel', 'novels', 'textbook', 'textbooks',
+            'comic', 'comics', 'manga', 'graphic novel', 'graphic novels', 'dvd', 'dvds',
+            'blu-ray', 'bluray', '4k uhd', 'vhs', 'cassette', 'vinyl', 'record album', 'lp',
+            'cd', 'cds', 'compact disc', 'audiobook', 'audiobooks', 'video game disc',
+            'game cartridge', 'movie', 'movies', 'soundtrack', 'magazine', 'magazines',
+            'periodical', 'sheet music', 'playbill', 'score', 'anthology', 'audio cd',
+            'kindle', 'audible', 'author', 'isbn', 'isbn-10', 'isbn-13', 'publisher',
+            'print length', 'reading age', 'mass market paperback', 'spiral-bound'
+        ];
+        if (hasKeyword(mediaKeywords)) {
+            return 'media';
+        }
+
+        // 5. Comprehensive Apparel Keyword Dictionary
+        const apparelKeywords = [
+            'shirt', 't-shirt', 'tee', 'top', 'blouse', 'sweater', 'hoodie', 'sweatshirt', 'cardigan',
+            'jacket', 'coat', 'parka', 'blazer', 'vest', 'pants', 'jeans', 'trousers', 'shorts',
+            'leggings', 'joggers', 'sweatpants', 'skirt', 'dress', 'gown', 'romper', 'jumpsuit',
+            'suit', 'tuxedo', 'shoe', 'shoes', 'sneaker', 'sneakers', 'boot', 'boots', 'heel',
+            'heels', 'sandal', 'sandals', 'loafer', 'loafers', 'flat', 'flats', 'slippers', 'socks',
+            'underwear', 'boxers', 'briefs', 'bra', 'lingerie', 'sleepwear', 'pajamas', 'swimsuit',
+            'bikini', 'trunks', 'hat', 'cap', 'beanie', 'scarf', 'gloves', 'belt', 'tie', 'bag',
+            'handbag', 'purse', 'tote', 'backpack', 'wallet', 'clutch', 'crossbody', 'satchel',
+            'sunglasses', 'glasses', 'jewelry', 'necklace', 'bracelet', 'ring', 'earring', 'earrings',
+            'pendant', 'brooch', 'apparel', 'clothing', 'wear', 'outfit', 'activewear', 'denim'
+        ];
+        if (hasKeyword(apparelKeywords)) {
+            return 'apparel';
+        }
+
         return 'general';
     };
 
@@ -301,8 +416,50 @@
             const csaEl = document.querySelector('[data-csa-c-delivery-price]');
             if (csaEl) shipping = parseShippingText(csaEl.getAttribute('data-csa-c-delivery-price')) || 0;
 
-            const breadcrumbs = document.querySelector('#wayfinding-breadcrumbs_container');
-            if (breadcrumbs) categoryContext += ` ${breadcrumbs.textContent}`;
+            // Amazon Breadcrumbs & Category / Book Context
+            const amazonCategorySelectors = [
+                '#wayfinding-breadcrumbs_container',
+                '#wayfinding-breadcrumbs_feature_div',
+                '.a-breadcrumb',
+                '#nav-subnav',
+                '#nav-search-dropdown-card',
+                '#searchDropdownBox option[selected]',
+                '#booksTitle',
+                '#books_feature_div',
+                '[data-feature-name="booksTitle"]',
+                '#productSubtitle',
+                '#bylineInfo',
+                '#bylineInfo_feature_div',
+                '.author',
+                '#tmmSwatches',
+                '#formatSelectorHeader',
+                '#detailBullets_feature_div',
+                '#detailBulletsWrapper_feature_div',
+                '#rpi-attribute-book_details-fiona_pages',
+                '#rpi-attribute-book_details-isbn13',
+                '#rpi-attribute-book_details-isbn10',
+                '#rpi-attribute-book_details-publication_date',
+                '#rpi-attribute-audiobook_details-release_date',
+                '#productDetailsTable'
+            ];
+            for (const sel of amazonCategorySelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    categoryContext += ` ${el.textContent.trim().replace(/\s+/g, ' ')}`;
+                }
+            }
+
+            const ogType = document.querySelector('meta[property="og:type"]');
+            if (ogType && ogType.content && ogType.content.toLowerCase().includes('book')) {
+                categoryContext += ' book media';
+            }
+
+            if (document.querySelector('a[href*="/bestsellers/books"]') ||
+                document.querySelector('a[href*="/Books/"]') ||
+                document.querySelector('a[href*="node=283155"]') ||
+                (window.location && window.location.href && /[\/=](283155|books|stripbooks)[\/?=&#]/i.test(window.location.href))) {
+                categoryContext += ' books media';
+            }
         } else if (isEbay) {
             // Title Selectors: h1.x-item-title__mainTitle .ux-textspans, h1#itemTitle
             const titleEl = document.querySelector('h1.x-item-title__mainTitle .ux-textspans') ||
@@ -547,17 +704,17 @@
                         <div class="seller-calc-grid-2">
                             <div class="seller-calc-field">
                                 <label>Cost of Item ($)</label>
-                                <input type="number" id="sc-cost" class="seller-calc-input" placeholder="0.00" step="0.01" value="${costVal > 0 ? costVal.toFixed(2) : ''}">
+                                <input type="number" id="sc-cost" class="seller-calc-input" placeholder="0.00" min="0" step="0.01" inputmode="decimal" value="${costVal > 0 ? costVal.toFixed(2) : ''}">
                             </div>
                             <div class="seller-calc-field">
                                 <label>Selling Price ($)</label>
-                                <input type="number" id="sc-sellPrice" class="seller-calc-input" placeholder="0.00" step="0.01" value="${sellPriceVal > 0 ? sellPriceVal.toFixed(2) : ''}">
+                                <input type="number" id="sc-sellPrice" class="seller-calc-input" placeholder="0.00" min="0" step="0.01" inputmode="decimal" value="${sellPriceVal > 0 ? sellPriceVal.toFixed(2) : ''}">
                             </div>
                         </div>
 
                         <div class="seller-calc-field">
                             <label>Est. Shipping & Materials ($)</label>
-                            <input type="number" id="sc-shipping" class="seller-calc-input" placeholder="0.00" step="0.01" value="${shippingVal > 0 ? shippingVal.toFixed(2) : '0.00'}">
+                            <input type="number" id="sc-shipping" class="seller-calc-input" placeholder="0.00" min="0" step="0.01" inputmode="decimal" value="${shippingVal > 0 ? shippingVal.toFixed(2) : '0.00'}">
                         </div>
 
                         <!-- 5-Column Results Table -->
@@ -663,9 +820,9 @@
             }
 
             function calculate() {
-                const cost = parseFloat(costInp.value) || 0;
-                const sellPrice = parseFloat(sellPriceInp.value) || 0;
-                const shipping = parseFloat(shippingInp.value) || 0;
+                const cost = Math.max(0, parseFloat(costInp.value) || 0);
+                const sellPrice = Math.max(0, parseFloat(sellPriceInp.value) || 0);
+                const shipping = Math.max(0, parseFloat(shippingInp.value) || 0);
                 const cat = categorySelect.value || 'general';
 
                 costVal = cost;
@@ -714,7 +871,102 @@
                 });
             }
 
+            function restrictToPositiveNumbers(input) {
+                if (!input) return;
+
+                // 1. Block keydown for -, +, e, E, and duplicate decimal point
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                        e.preventDefault();
+                        return;
+                    }
+                    if (e.key === '.') {
+                        const val = input.value || '';
+                        const selStart = input.selectionStart;
+                        const selEnd = input.selectionEnd;
+                        const selectedText = (selStart !== null && selEnd !== null) ? val.slice(selStart, selEnd) : '';
+                        if (val.includes('.') && !selectedText.includes('.')) {
+                            e.preventDefault();
+                            return;
+                        }
+                    }
+                });
+
+                // 2. Block beforeinput for mobile, virtual keyboards, drag-and-drop
+                input.addEventListener('beforeinput', (e) => {
+                    if (e.data) {
+                        if (/[-+eE]/.test(e.data)) {
+                            e.preventDefault();
+                            return;
+                        }
+                        if (e.data.includes('.')) {
+                            const val = input.value || '';
+                            const selStart = input.selectionStart;
+                            const selEnd = input.selectionEnd;
+                            const selectedText = (selStart !== null && selEnd !== null) ? val.slice(selStart, selEnd) : '';
+                            if (val.includes('.') && !selectedText.includes('.')) {
+                                e.preventDefault();
+                                return;
+                            }
+                        }
+                    }
+                });
+
+                // 3. Intercept paste to clean any invalid numbers (e.g. -3-4, --4, ++4, +-9000)
+                input.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const clipboardData = e.clipboardData || window.clipboardData;
+                    const text = clipboardData ? clipboardData.getData('text') : '';
+                    if (!text) return;
+
+                    let clean = text.replace(/[^0-9.]/g, '');
+                    const dotIndex = clean.indexOf('.');
+                    if (dotIndex !== -1) {
+                        clean = clean.slice(0, dotIndex + 1) + clean.slice(dotIndex + 1).replace(/\./g, '');
+                    }
+
+                    if (clean) {
+                        const val = input.value || '';
+                        const selStart = input.selectionStart !== null ? input.selectionStart : val.length;
+                        const selEnd = input.selectionEnd !== null ? input.selectionEnd : val.length;
+                        let combined = val.slice(0, selStart) + clean + val.slice(selEnd);
+                        const firstDot = combined.indexOf('.');
+                        if (firstDot !== -1) {
+                            combined = combined.slice(0, firstDot + 1) + combined.slice(firstDot + 1).replace(/\./g, '');
+                        }
+
+                        const num = parseFloat(combined);
+                        if (!isNaN(num) && num >= 0) {
+                            input.value = combined;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }
+                });
+
+                // 4. Block drag and drop of text
+                input.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                });
+
+                // 5. On input event: clear bad input or negative numbers
+                input.addEventListener('input', () => {
+                    if (input.validity && input.validity.badInput) {
+                        input.value = '';
+                        return;
+                    }
+                    if (input.value !== '') {
+                        const val = parseFloat(input.value);
+                        if (isNaN(val) || val < 0) {
+                            input.value = '';
+                        }
+                    }
+                });
+            }
+
             // Input Event Listeners
+            [costInp, sellPriceInp, shippingInp].forEach(inp => {
+                if (inp) restrictToPositiveNumbers(inp);
+            });
             costInp.addEventListener('input', calculate);
             sellPriceInp.addEventListener('input', calculate);
             shippingInp.addEventListener('input', calculate);
