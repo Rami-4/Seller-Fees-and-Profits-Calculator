@@ -162,20 +162,42 @@
 
     const parseShippingText = (text) => {
         if (!text) return null;
-        const lower = text.toLowerCase().trim();
-        if (lower === 'free' || lower.includes('free shipping')) return 0.00;
+        const str = String(text).replace(/\s+/g, ' ').trim();
+        const lower = str.toLowerCase();
+
+        // 1. High priority: "Cost to ship: $X.XX" or "Cost to ship: FREE"
+        const costToShipMatch = str.match(/cost\s+to\s+ship\s*:?\s*(free|\$?\s*[0-9]+(?:\.[0-9]{2})?)/i);
+        if (costToShipMatch && costToShipMatch[1]) {
+            const valStr = costToShipMatch[1].trim();
+            if (/free/i.test(valStr)) return 0.00;
+            const num = parseFloat(valStr.replace(/[^0-9.]/g, ''));
+            if (!isNaN(num)) return num;
+        }
+
+        // 2. High priority: Check for explicit "Free Shipping" / "Free delivery" when not accompanied by conditional spend/order requirements
+        if (/^(?:free|free\s+shipping|free\s+delivery|fast\s+'n\s+free|free\s+standard\s+shipping)$/i.test(lower)) {
+            return 0.00;
+        }
+
+        // 3. Patterns matching shipping with exact dollar amounts
         const patterns = [
-            /(?:shipping|delivery|postage)\s*:?\s*(?:us)?\s*\$?\s*([0-9]+\.[0-9]{2})/i,
+            /(?:cost\s+to\s+ship|shipping|delivery|postage)\s*:?\s*(?:us)?\s*\$?\s*([0-9]+\.[0-9]{2})/i,
             /(?:us\s*)?\$([0-9]+\.[0-9]{2})\s*(?:shipping|delivery|postage|standard|expedited|economy|priority)/i,
             /\+\s*\$([0-9]+\.[0-9]{2})/i,
+            /(?:or\s+fastest\s+delivery[^\$]*)\$\s*([0-9]+\.[0-9]{2})/i,
             /\$([0-9]+\.[0-9]{2})/
         ];
         for (const pat of patterns) {
-            const m = text.match(pat);
+            const m = str.match(pat);
             if (m && m[1]) {
                 const val = parseFloat(m[1]);
                 if (!isNaN(val)) return val;
             }
+        }
+
+        // Only fallback to free if unconditionally free (does not say "spend $35", "orders over", etc.)
+        if (lower.includes('free') && !/(?:spend|order|when\s+you|over|\+)/i.test(lower)) {
+            return 0.00;
         }
         return null;
     };
@@ -358,8 +380,9 @@
         const isEbay = hostname.includes('ebay.') || urlLower.includes('ebay.');
         const isPoshmark = hostname.includes('poshmark.') || urlLower.includes('poshmark.');
         const isWalmart = hostname.includes('walmart.') || urlLower.includes('walmart.');
+        const isEtsy = hostname.includes('etsy.') || urlLower.includes('etsy.');
 
-        let platform = isPoshmark ? 'Poshmark' : (isAmazon ? 'Amazon' : (isEbay ? 'eBay' : (isWalmart ? 'Walmart' : 'Custom')));
+        let platform = isPoshmark ? 'Poshmark' : (isAmazon ? 'Amazon' : (isEbay ? 'eBay' : (isWalmart ? 'Walmart' : (isEtsy ? 'Etsy' : 'Custom'))));
         let title = '';
         let price = null;
         let shipping = 0.00;
@@ -597,6 +620,108 @@
 
             const breadcrumbs = document.querySelector('nav[aria-label="breadcrumb"]') || document.querySelector('.breadcrumb');
             if (breadcrumbs && breadcrumbs.textContent) categoryContext += ` ${breadcrumbs.textContent}`;
+        } else if (isEtsy) {
+            // Etsy Title Selectors
+            const etsyTitleSelectors = [
+                'h1[data-buy-box-listing-title]',
+                'h1.wt-text-body-01',
+                'h1.wt-text-body-03',
+                'h1.wt-line-height-tight',
+                'div[data-component="listing-page-title"] h1',
+                'h1'
+            ];
+            for (const sel of etsyTitleSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    title = el.textContent.trim().replace(/\s+/g, ' ');
+                    if (title) break;
+                }
+            }
+
+            // Etsy Price Selectors
+            const etsyPriceSelectors = [
+                'p.wt-text-title-larger span.currency-value',
+                'div[data-buy-box-region="price"] p',
+                'span.currency-value',
+                '[data-selector="price-only"]',
+                '.wt-text-title-larger',
+                'p[data-buy-box-listing-price]',
+                'p.wt-text-title-03',
+                'div[data-buy-box-region="price"]'
+            ];
+            for (const sel of etsyPriceSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    const parsed = cleanPrice(el.textContent);
+                    if (parsed && parsed > 0) {
+                        price = parsed;
+                        break;
+                    }
+                }
+            }
+
+            // Etsy Shipping Selectors
+            const etsyShippingSelectors = [
+                'div[data-selector="shipping-section"]',
+                'div[data-component="shipping-and-returns"]',
+                '#shipping-and-returns',
+                'div.processing-and-shipping',
+                'div[data-buy-box-region="shipping"]',
+                '[data-sub-component="shipping-price"]',
+                '[data-selector="shipping-cost"]',
+                '.wt-badge'
+            ];
+            for (const sel of etsyShippingSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.textContent) {
+                    const parsedShip = parseShippingText(el.textContent);
+                    if (parsedShip !== null && parsedShip > 0) {
+                        shipping = parsedShip;
+                        break;
+                    }
+                }
+            }
+
+            // 2. Scan elements containing "Cost to ship" text
+            if (shipping === 0) {
+                const candidates = Array.from(document.querySelectorAll('div, p, span, tr, td')).filter(el => {
+                    return el.children.length <= 3 && /cost\s+to\s+ship/i.test(el.textContent || '');
+                });
+                for (const el of candidates) {
+                    const parsed = parseShippingText(el.textContent);
+                    if (parsed !== null && parsed > 0) {
+                        shipping = parsed;
+                        break;
+                    }
+                    if (el.nextElementSibling) {
+                        const parsedNext = parseShippingText(el.nextElementSibling.textContent);
+                        if (parsedNext !== null && parsedNext > 0) {
+                            shipping = parsedNext;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 3. Fallback: Search anywhere in document text for "Cost to ship: $X.XX"
+            if (shipping === 0 && document.body) {
+                const bodyText = document.body.innerText || document.body.textContent || '';
+                const match = bodyText.match(/cost\s+to\s+ship\s*:?\s*\$?\s*([0-9]+\.[0-9]{2})/i);
+                if (match && match[1]) {
+                    const val = parseFloat(match[1]);
+                    if (!isNaN(val) && val > 0) {
+                        shipping = val;
+                    }
+                }
+            }
+
+            // Etsy Category / Breadcrumbs
+            const catBreadcrumbs = document.querySelector('ul[data-bread-crumbs]') ||
+                                   document.querySelector('.wt-breadcrumbs') ||
+                                   document.querySelector('nav[aria-label="Breadcrumb"]');
+            if (catBreadcrumbs && catBreadcrumbs.textContent) {
+                categoryContext += ` ${catBreadcrumbs.textContent}`;
+            }
         }
 
         // Universal Fallback (Schema / JSON-LD):
@@ -609,7 +734,7 @@
 
         // Final title fallback
         if (!title && document.title) {
-            title = document.title.replace(/\s*[-|]\s*(amazon|ebay|poshmark|walmart).*$/i, '').trim();
+            title = document.title.replace(/\s*[-|]\s*(amazon|ebay|poshmark|walmart|etsy).*$/i, '').trim();
         }
 
         const category = detectCategory(title, categoryContext);
