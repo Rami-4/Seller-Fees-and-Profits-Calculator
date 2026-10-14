@@ -521,10 +521,12 @@ scrapeBtn.addEventListener('click', async () => {
 
         if (results && results[0] && results[0].result) {
             const data = results[0].result;
-            if (data.price !== null && data.price > 0) {
+            if (data.isHomePageOrSearch) {
+                showStatus(`👉 Not on a product page. Please click on a product to open its listing page first.`, 'status-warn');
+            } else if (data.price !== null && data.price > 0) {
                 applyScrapedData(data);
             } else if (data.foundPage) {
-                showStatus(`⚠️ Found ${data.platform} page, but could not detect a live price. Is it an active listing?`, 'status-warn');
+                showStatus(`👉 Please click on a product on ${data.platform || 'the store'} to open its page to calculate fees.`, 'status-warn');
             } else {
                 showStatus('⚠️ Current active tab is not a supported Amazon, eBay, Walmart, Etsy, or Poshmark listing page.', 'status-warn');
             }
@@ -647,13 +649,32 @@ function extractListingDataFromDOM() {
             const rawCombined = `${title || ''} ${extraText || ''}`.toLowerCase();
             const cleanCombined = rawCombined.replace(/[^a-z0-9\s-]/g, ' ');
 
+            // Match helper that handles word boundaries and multi-word phrases cleanly
+            const hasKeyword = (keywords) => {
+                for (const kw of keywords) {
+                    if (kw.includes(' ') || kw.includes('-') || kw.includes('&') || kw.includes('(')) {
+                        if (rawCombined.includes(kw) || cleanCombined.includes(kw.replace(/[^a-z0-9]/g, ' '))) {
+                            return true;
+                        }
+                    } else {
+                        const regex = new RegExp(`(^|[^a-z0-9])${kw}([^a-z0-9]|$)`, 'i');
+                        if (regex.test(cleanCombined)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+
             // 1. Direct High-Confidence Book & Media Taxonomy & Format Signals
             const strongMediaSignals = [
                 'books & magazines', 'textbooks', 'books', 'book format', 'hardcover', 'paperback',
                 'mass market paperback', 'spiral-bound', 'isbn-10', 'isbn-13', 'isbn', '(author)',
                 'print length', 'reading age', 'kindle edition', 'kindle store', 'audiobook',
                 'audiobooks', 'music & cds', 'vinyl records', 'movies & tv', 'dvds & blu-ray',
-                'comic books', 'manga', 'graphic novel', 'graphic novels', 'bestsellers in books'
+                'comic books', 'manga', 'graphic novel', 'graphic novels', 'bestsellers in books',
+                'publisher', 'publication date', 'pages', 'illustrated edition', 'abridged',
+                'unabridged', 'translated by', 'stripbooks', 'format kindle'
             ];
             for (const signal of strongMediaSignals) {
                 if (rawCombined.includes(signal)) {
@@ -671,13 +692,31 @@ function extractListingDataFromDOM() {
                 'wearables', 'wearable technology', 'car electronics', 'media players',
                 'home audio', 'portable audio', 'computer accessories', 'pc gaming'
             ];
-            for (const signal of strongElectronicsSignals) {
-                if (rawCombined.includes(signal)) {
-                    return 'electronics';
-                }
+
+            // 3. Comprehensive Media Keyword Dictionary
+            const mediaKeywords = [
+                'book', 'books', 'hardcover', 'paperback', 'novel', 'novels', 'textbook', 'textbooks',
+                'comic', 'comics', 'manga', 'graphic novel', 'graphic novels', 'dvd', 'dvds',
+                'blu-ray', 'bluray', '4k uhd', 'vhs', 'cassette', 'vinyl', 'record album', 'lp',
+                'cd', 'cds', 'compact disc', 'audiobook', 'audiobooks', 'video game disc',
+                'game cartridge', 'movie', 'movies', 'soundtrack', 'magazine', 'magazines',
+                'periodical', 'sheet music', 'playbill', 'score', 'anthology', 'audio cd',
+                'kindle', 'audible', 'author', 'isbn', 'isbn-10', 'isbn-13', 'publisher',
+                'print length', 'reading age', 'mass market paperback', 'spiral-bound'
+            ];
+
+            // If explicit media keyword is found (e.g. "book", "paperback", "novel", "kindle")
+            // and item is not clearly hardware/computer/device (like macbook or chromebook), prioritize media
+            const isHardwareDevice = /\b(macbook|chromebook|surface\s*pro|notebook\s*(?:pc|laptop)|laptop|desktop|monitor|tablet)\b/i.test(cleanCombined);
+            if (hasKeyword(mediaKeywords) && !isHardwareDevice) {
+                return 'media';
             }
 
-            // 3. Comprehensive Electronics & Tech Keyword Dictionary
+            if (hasKeyword(strongElectronicsSignals)) {
+                return 'electronics';
+            }
+
+            // 4. Comprehensive Electronics & Tech Keyword Dictionary
             const electronicsKeywords = [
                 // Computing & Peripherals
                 'laptop', 'macbook', 'chromebook', 'desktop', 'computer', 'pc', 'monitor', 'display',
@@ -725,19 +764,7 @@ function extractListingDataFromDOM() {
                 'shark ninja', 'electronic', 'gadget', 'cordless', 'rechargeable', 'digital', 'infrared'
             ];
 
-            // 4. Comprehensive Media Keyword Dictionary
-            const mediaKeywords = [
-                'book', 'books', 'hardcover', 'paperback', 'novel', 'novels', 'textbook', 'textbooks',
-                'comic', 'comics', 'manga', 'graphic novel', 'graphic novels', 'dvd', 'dvds',
-                'blu-ray', 'bluray', '4k uhd', 'vhs', 'cassette', 'vinyl', 'record album', 'lp',
-                'cd', 'cds', 'compact disc', 'audiobook', 'audiobooks', 'video game disc',
-                'game cartridge', 'movie', 'movies', 'soundtrack', 'magazine', 'magazines',
-                'periodical', 'sheet music', 'playbill', 'score', 'anthology', 'audio cd',
-                'kindle', 'audible', 'author', 'isbn', 'isbn-10', 'isbn-13', 'publisher',
-                'print length', 'reading age', 'mass market paperback', 'spiral-bound'
-            ];
-
-            // 4. Comprehensive Apparel Keyword Dictionary
+            // 5. Comprehensive Apparel Keyword Dictionary
             const apparelKeywords = [
                 'shirt', 't-shirt', 'tee', 'top', 'blouse', 'sweater', 'hoodie', 'sweatshirt', 'cardigan',
                 'jacket', 'coat', 'parka', 'blazer', 'vest', 'pants', 'jeans', 'trousers', 'shorts',
@@ -750,23 +777,6 @@ function extractListingDataFromDOM() {
                 'sunglasses', 'glasses', 'jewelry', 'necklace', 'bracelet', 'ring', 'earring', 'earrings',
                 'pendant', 'brooch', 'apparel', 'clothing', 'wear', 'outfit', 'activewear', 'denim'
             ];
-
-            // Match helper that handles word boundaries and multi-word phrases cleanly
-            const hasKeyword = (keywords) => {
-                for (const kw of keywords) {
-                    if (kw.includes(' ') || kw.includes('-')) {
-                        if (rawCombined.includes(kw) || cleanCombined.includes(kw.replace(/-/g, ' '))) {
-                            return true;
-                        }
-                    } else {
-                        const regex = new RegExp(`(^|[^a-z0-9])${kw}([^a-z0-9]|$)`, 'i');
-                        if (regex.test(cleanCombined)) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            };
 
             // Priority 1: Check Electronics (tech items, grooming gadgets, electronics)
             if (hasKeyword(electronicsKeywords)) {
@@ -791,6 +801,7 @@ function extractListingDataFromDOM() {
         function scanUniversalSchema() {
             let schemaTitle = '';
             let schemaPrice = null;
+            let isBookSchema = false;
             const schemas = document.querySelectorAll('script[type="application/ld+json"]');
             for (const s of schemas) {
                 try {
@@ -803,6 +814,11 @@ function extractListingDataFromDOM() {
 
                         if (Array.isArray(item['@graph'])) {
                             queue.push(...item['@graph']);
+                        }
+
+                        const itemType = String(item['@type'] || '').toLowerCase();
+                        if (itemType.includes('book') || itemType.includes('audiobook') || itemType.includes('chapter')) {
+                            isBookSchema = true;
                         }
 
                         if (!schemaTitle && typeof item.name === 'string' && item.name.trim()) {
@@ -826,16 +842,36 @@ function extractListingDataFromDOM() {
                             }
                         }
 
-                        if (schemaTitle && schemaPrice) break;
+                        if (schemaTitle && schemaPrice && isBookSchema) break;
                     }
                 } catch (e) {}
-                if (schemaTitle && schemaPrice) break;
+                if (schemaTitle && schemaPrice && isBookSchema) break;
             }
-            return { title: schemaTitle, price: schemaPrice };
+            return { title: schemaTitle, price: schemaPrice, isBook: isBookSchema };
         }
 
         // --- POSHMARK SCRAPER ---
         if (isPoshmark) {
+            // Verify Poshmark is on a specific product listing (/listing/ or .listing__title / .listing__price)
+            const hasPoshmarkProductUrl = /\/listing\//i.test(url);
+            const hasPoshmarkProductDom = Boolean(
+                document.querySelector('h1.listing__title, .listing__price, [data-test="listing-price"]')
+            );
+            const isProductListing = hasPoshmarkProductUrl || hasPoshmarkProductDom;
+
+            if (!isProductListing) {
+                return {
+                    foundPage: false,
+                    isHomePageOrSearch: true,
+                    platform: 'Poshmark',
+                    title: '',
+                    price: null,
+                    shipping: 0,
+                    category: 'apparel',
+                    url
+                };
+            }
+
             // Title Selectors: h1.listing__title, [data-test="listing-title"]
             let title = '';
             const titleEl = document.querySelector('h1.listing__title') ||
@@ -915,21 +951,41 @@ function extractListingDataFromDOM() {
                     '[data-test="shipping-discount"]',
                     '.listing__policy-info',
                     'div.listing__shipping',
-                    'p.listing__shipping'
+                    'p.listing__shipping',
+                    '[data-et-name="shipping"]',
+                    '.shipping-info',
+                    '.card__shipping',
+                    '.pdp__details'
                 ];
                 for (const sel of poshShippingSelectors) {
                     const el = document.querySelector(sel);
                     if (el && el.textContent) {
                         const parsed = parseShippingText(el.textContent);
-                        if (parsed !== null) {
+                        if (parsed !== null && parsed > 0) {
                             shipping = parsed;
                             break;
                         }
                     }
                 }
             }
+
+            // Fallback: Scan text nodes mentioning shipping or specific Poshmark shipping formats
             if (shipping === 0) {
-                shipping = urlLower.includes('poshmark.ca') ? 13.49 : 7.97;
+                const candidates = Array.from(document.querySelectorAll('div, p, span, li')).filter(el => {
+                    return el.children.length <= 3 && /shipping/i.test(el.textContent || '');
+                });
+                for (const el of candidates) {
+                    const parsed = parseShippingText(el.textContent);
+                    if (parsed !== null && parsed > 0) {
+                        shipping = parsed;
+                        break;
+                    }
+                }
+            }
+
+            // If still no shipping detected, use current standard Poshmark flat rates ($6.49 US / $13.49 CA)
+            if (shipping === 0) {
+                shipping = urlLower.includes('poshmark.ca') ? 13.49 : 6.49;
             }
 
             const catEl = document.querySelector('.listing__category-tag') ||
@@ -961,6 +1017,27 @@ function extractListingDataFromDOM() {
 
         // --- AMAZON SCRAPER ---
         if (isAmazon) {
+            // Verify if user is actually on an Amazon product page (not home page, deals page, search, cart, etc.)
+            const hasAmazonProductUrl = /[\/=](?:dp|gp\/product|gp\/aw\/d|product)\/([A-Z0-9]{10})/i.test(url);
+            const hasAmazonProductDom = Boolean(
+                document.querySelector('#dp, #ppd, #productTitle, input#ASIN[value]') ||
+                (document.querySelector('input#ASIN') && document.querySelector('input#ASIN').value && document.querySelector('input#ASIN').value.trim().length === 10)
+            );
+            const isProductListing = hasAmazonProductUrl || hasAmazonProductDom;
+
+            if (!isProductListing) {
+                return {
+                    foundPage: false,
+                    isHomePageOrSearch: true,
+                    platform: 'Amazon',
+                    title: '',
+                    price: null,
+                    shipping: 0,
+                    category: 'general',
+                    url
+                };
+            }
+
             // Title Selectors: #productTitle, h1#title
             let title = '';
             const titleEl = document.querySelector('#productTitle') || 
@@ -971,27 +1048,21 @@ function extractListingDataFromDOM() {
             }
 
             // Price Selectors:
-            // 1. .a-price .a-offscreen (primary hidden clean value)
+            // 1. #corePrice_feature_div .a-price .a-offscreen (specific to product buy box)
             let price = null;
-            const primaryOffscreen = document.querySelector('.a-price .a-offscreen');
-            if (primaryOffscreen && primaryOffscreen.textContent) {
-                price = cleanPrice(primaryOffscreen.textContent);
+            const coreOffscreen = document.querySelector('#corePrice_feature_div .a-price .a-offscreen') ||
+                                  document.querySelector('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
+                                  document.querySelector('#apex_desktop .a-price .a-offscreen');
+            if (coreOffscreen && coreOffscreen.textContent) {
+                price = cleanPrice(coreOffscreen.textContent);
             }
 
-            // 2. #corePrice_feature_div .a-price .a-offscreen
-            if (!price) {
-                const coreOffscreen = document.querySelector('#corePrice_feature_div .a-price .a-offscreen');
-                if (coreOffscreen && coreOffscreen.textContent) {
-                    price = cleanPrice(coreOffscreen.textContent);
-                }
-            }
-
-            // 3. #corePriceDisplay_desktop_feature_div span.a-price-whole (paired with .a-price-fraction)
+            // 2. #corePriceDisplay_desktop_feature_div span.a-price-whole (paired with .a-price-fraction)
             if (!price) {
                 const wholeEl = document.querySelector('#corePriceDisplay_desktop_feature_div span.a-price-whole') ||
-                                document.querySelector('.a-price-whole');
+                                document.querySelector('#corePrice_feature_div span.a-price-whole');
                 const fracEl = document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction') ||
-                               document.querySelector('.a-price-fraction');
+                               document.querySelector('#corePrice_feature_div .a-price-fraction');
                 if (wholeEl && wholeEl.textContent) {
                     const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
                     const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
@@ -1001,7 +1072,27 @@ function extractListingDataFromDOM() {
                 }
             }
 
-            // 4. #priceblock_ourprice, #priceblock_dealprice
+            // 3. Fallback within #dp / #ppd buy box area
+            if (!price) {
+                const buyBoxPriceEl = document.querySelector('#ppd .a-price .a-offscreen') ||
+                                      document.querySelector('#dp .a-price .a-offscreen') ||
+                                      document.querySelector('#price_inside_buybox') ||
+                                      document.querySelector('#newBuyBoxPrice');
+                if (buyBoxPriceEl && buyBoxPriceEl.textContent) {
+                    price = cleanPrice(buyBoxPriceEl.textContent);
+                }
+            }
+
+            // 4. Fallback .a-price .a-offscreen ONLY if inside main product container
+            if (!price) {
+                const offscreenEl = document.querySelector('#centerCol .a-price .a-offscreen') ||
+                                    document.querySelector('.a-price .a-offscreen');
+                if (offscreenEl && offscreenEl.textContent) {
+                    price = cleanPrice(offscreenEl.textContent);
+                }
+            }
+
+            // 5. #priceblock_ourprice, #priceblock_dealprice
             if (!price) {
                 const fallbackEl = document.querySelector('#priceblock_ourprice') ||
                                    document.querySelector('#priceblock_dealprice');
@@ -1051,8 +1142,19 @@ function extractListingDataFromDOM() {
                 }
             }
 
+            let isAmazonBook = false;
+            // Check high-confidence Amazon book DOM elements
+            const amazonBookEl = document.querySelector('#booksTitle, #books_feature_div, [data-feature-name="booksTitle"], #tmmSwatches, #formatSelectorHeader, #rpi-attribute-book_details-fiona_pages, #rpi-attribute-book_details-isbn13, #rpi-attribute-book_details-isbn10, #rpi-attribute-book_details-publication_date, #rpi-attribute-audiobook_details-release_date');
+            if (amazonBookEl) {
+                isAmazonBook = true;
+            }
+
+            // Check meta and canonical links
+            const canonicalHref = (document.querySelector('link[rel="canonical"]') || {}).href || '';
             const ogType = document.querySelector('meta[property="og:type"]');
-            if (ogType && ogType.content && ogType.content.toLowerCase().includes('book')) {
+            if ((ogType && ogType.content && ogType.content.toLowerCase().includes('book')) ||
+                /[\/=](283155|books|stripbooks)[\/?=&#]/i.test(canonicalHref)) {
+                isAmazonBook = true;
                 breadcrumbsText += ' book media';
             }
 
@@ -1060,19 +1162,27 @@ function extractListingDataFromDOM() {
                 document.querySelector('a[href*="/Books/"]') ||
                 document.querySelector('a[href*="node=283155"]') ||
                 (window.location && window.location.href && /[\/=](283155|books|stripbooks)[\/?=&#]/i.test(window.location.href))) {
+                isAmazonBook = true;
                 breadcrumbsText += ' books media';
             }
 
             // Universal Fallback (Schema / JSON-LD)
-            if (!price || !title) {
-                const schema = scanUniversalSchema();
-                if (!title && schema.title) title = schema.title;
-                if (!price && schema.price) price = schema.price;
+            const schema = scanUniversalSchema();
+            if (schema.isBook) {
+                isAmazonBook = true;
+                breadcrumbsText += ' books media';
             }
+            if (!title && schema.title) title = schema.title;
+            if (!price && schema.price) price = schema.price;
 
             if (!title && document.title) title = document.title.replace(/amazon(\.[a-z]+)?\s*:\s*/i, '').trim();
 
-            const category = detectCategory(title, breadcrumbsText, 'Amazon');
+            let category = detectCategory(title, breadcrumbsText, 'Amazon');
+            if (isAmazonBook && category !== 'electronics' && category !== 'apparel') {
+                category = 'media';
+            } else if (isAmazonBook) {
+                category = 'media';
+            }
 
             // Sanitization & Event Trigger for #sellPrice if present in DOM
             const hostSellPrice = document.getElementById('sellPrice');
@@ -1087,6 +1197,26 @@ function extractListingDataFromDOM() {
 
         // --- EBAY SCRAPER ---
         if (isEbay) {
+            // Verify eBay is on an active item page (e.g., /itm/ or item title container)
+            const hasEbayProductUrl = /\/itm(?:\/|\?|%2F)([0-9]{9,14})/i.test(url);
+            const hasEbayProductDom = Boolean(
+                document.querySelector('h1.x-item-title__mainTitle, h1#itemTitle, #prcIsum, [data-testid="x-price-primary"]')
+            );
+            const isProductListing = hasEbayProductUrl || hasEbayProductDom;
+
+            if (!isProductListing) {
+                return {
+                    foundPage: false,
+                    isHomePageOrSearch: true,
+                    platform: 'eBay',
+                    title: '',
+                    price: null,
+                    shipping: 0,
+                    category: 'general',
+                    url
+                };
+            }
+
             // Title Selectors: h1.x-item-title__mainTitle .ux-textspans, h1#itemTitle
             let title = '';
             const titleEl = document.querySelector('h1.x-item-title__mainTitle .ux-textspans') ||
@@ -1159,6 +1289,26 @@ function extractListingDataFromDOM() {
 
         // --- WALMART SCRAPER ---
         if (isWalmart) {
+            // Verify Walmart is on a product page (/ip/ or item title container)
+            const hasWalmartProductUrl = /\/ip(?:\/|_)/i.test(url);
+            const hasWalmartProductDom = Boolean(
+                document.querySelector('h1#main-title, h1[itemprop="name"], [data-testid="price-wrap"], span[itemprop="price"]')
+            );
+            const isProductListing = hasWalmartProductUrl || hasWalmartProductDom;
+
+            if (!isProductListing) {
+                return {
+                    foundPage: false,
+                    isHomePageOrSearch: true,
+                    platform: 'Walmart',
+                    title: '',
+                    price: null,
+                    shipping: 0,
+                    category: 'general',
+                    url
+                };
+            }
+
             // Title Selectors: h1#main-title, h1[itemprop="name"]
             let title = '';
             const titleEl = document.querySelector('h1#main-title') ||
@@ -1228,6 +1378,26 @@ function extractListingDataFromDOM() {
 
         // --- ETSY SCRAPER ---
         if (isEtsy) {
+            // Verify Etsy is on an active listing page (/listing/ or buy box title)
+            const hasEtsyProductUrl = /\/listing\//i.test(url);
+            const hasEtsyProductDom = Boolean(
+                document.querySelector('h1[data-buy-box-listing-title], div[data-component="listing-page-title"], div[data-buy-box-region="price"], p[data-buy-box-listing-price]')
+            );
+            const isProductListing = hasEtsyProductUrl || hasEtsyProductDom;
+
+            if (!isProductListing) {
+                return {
+                    foundPage: false,
+                    isHomePageOrSearch: true,
+                    platform: 'Etsy',
+                    title: '',
+                    price: null,
+                    shipping: 0,
+                    category: 'general',
+                    url
+                };
+            }
+
             let title = '';
             const etsyTitleSelectors = [
                 'h1[data-buy-box-listing-title]',
