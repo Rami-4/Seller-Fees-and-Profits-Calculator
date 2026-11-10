@@ -40,6 +40,17 @@
             font-weight: 700;
             white-space: nowrap;
             letter-spacing: -0.2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-title-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            object-fit: contain;
+            flex-shrink: 0;
         }
 
         .header-btn {
@@ -768,7 +779,7 @@
     <!-- Calculator View -->
     <div id="calcView">
         <div class="header-bar">
-            <h3>Seller Fees & Profits</h3>
+            <h3><img src="icons/icon48.png" class="header-title-icon" alt="" /> Seller Fees & Profits</h3>
             <div class="header-actions">
                 <button id="headerListBtn" class="header-btn" title="View Sourcing Scout List">
                     <span>📋 Sheet</span><span class="header-count-pill" id="headerListCount">0</span>

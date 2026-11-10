@@ -7,6 +7,10 @@
     }
     window.__SELLER_CALC_ACTIVE__ = true;
 
+    const APP_ICON_URL = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL)
+        ? chrome.runtime.getURL('icons/icon48.png')
+        : '';
+
     const PLATFORMS_META = [
         { id: 'ebay', baseName: 'eBay', desc: 'Category-specific final value fee + $0.30' },
         { id: 'amazon', baseName: 'Amazon', desc: 'Category referral fee (+ closing fee for media)' },
@@ -77,15 +81,15 @@
             try {
                 const storedPro = localStorage.getItem(PRO_STORAGE_KEY);
                 if (storedPro !== null) proCache = storedPro === 'true';
-            } catch(e){}
+            } catch (e) { }
             try {
                 const s = localStorage.getItem(STORAGE_KEY);
                 if (s) storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...JSON.parse(s) };
-            } catch(e){}
+            } catch (e) { }
             try {
                 const l = localStorage.getItem(SOURCING_STORAGE_KEY);
                 if (l) sourcingCache = JSON.parse(l);
-            } catch(e){}
+            } catch (e) { }
         }
     }
     syncFromStorage();
@@ -117,7 +121,7 @@
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.set({ [PRO_STORAGE_KEY]: proCache });
         }
-        try { localStorage.setItem(PRO_STORAGE_KEY, proCache ? 'true' : 'false'); } catch (e) {}
+        try { localStorage.setItem(PRO_STORAGE_KEY, proCache ? 'true' : 'false'); } catch (e) { }
         if (activeWidgetInstance) {
             activeWidgetInstance.updateData(scrapeCurrentListing());
         }
@@ -130,7 +134,7 @@
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.set({ [STORAGE_KEY]: storesCache });
         }
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(storesCache)); } catch (e) {}
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(storesCache)); } catch (e) { }
     }
     function getSourcingList() {
         return [...sourcingCache];
@@ -140,7 +144,7 @@
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.set({ [SOURCING_STORAGE_KEY]: sourcingCache });
         }
-        try { localStorage.setItem(SOURCING_STORAGE_KEY, JSON.stringify(sourcingCache)); } catch (e) {}
+        try { localStorage.setItem(SOURCING_STORAGE_KEY, JSON.stringify(sourcingCache)); } catch (e) { }
     }
 
     const cleanPrice = (str) => {
@@ -385,7 +389,7 @@
 
                     if (schemaTitle && schemaPrice && isBookSchema) break;
                 }
-            } catch (e) {}
+            } catch (e) { }
             if (schemaTitle && schemaPrice && isBookSchema) break;
         }
         return { title: schemaTitle, price: schemaPrice, isBook: isBookSchema };
@@ -432,8 +436,8 @@
 
             // Title Selectors: #productTitle, h1#title
             const titleEl = document.querySelector('#productTitle') ||
-                            document.querySelector('h1#title') ||
-                            document.querySelector('#title');
+                document.querySelector('h1#title') ||
+                document.querySelector('#title');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
@@ -441,8 +445,8 @@
             // Price Selectors:
             // 1. #corePrice_feature_div .a-price .a-offscreen (specific to product buy box)
             const coreOffscreenEl = document.querySelector('#corePrice_feature_div .a-price .a-offscreen') ||
-                                    document.querySelector('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
-                                    document.querySelector('#apex_desktop .a-price .a-offscreen');
+                document.querySelector('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
+                document.querySelector('#apex_desktop .a-price .a-offscreen');
             if (coreOffscreenEl && coreOffscreenEl.textContent) {
                 price = cleanPrice(coreOffscreenEl.textContent);
             }
@@ -450,9 +454,9 @@
             // 2. #corePriceDisplay_desktop_feature_div span.a-price-whole (paired with .a-price-fraction)
             if (!price) {
                 const wholeEl = document.querySelector('#corePriceDisplay_desktop_feature_div span.a-price-whole') ||
-                                document.querySelector('#corePrice_feature_div span.a-price-whole');
+                    document.querySelector('#corePrice_feature_div span.a-price-whole');
                 const fracEl = document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction') ||
-                               document.querySelector('#corePrice_feature_div .a-price-fraction');
+                    document.querySelector('#corePrice_feature_div .a-price-fraction');
                 if (wholeEl && wholeEl.textContent) {
                     const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
                     const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
@@ -465,9 +469,9 @@
             // 3. Fallback within #dp / #ppd buy box area
             if (!price) {
                 const buyBoxPriceEl = document.querySelector('#ppd .a-price .a-offscreen') ||
-                                      document.querySelector('#dp .a-price .a-offscreen') ||
-                                      document.querySelector('#price_inside_buybox') ||
-                                      document.querySelector('#newBuyBoxPrice');
+                    document.querySelector('#dp .a-price .a-offscreen') ||
+                    document.querySelector('#price_inside_buybox') ||
+                    document.querySelector('#newBuyBoxPrice');
                 if (buyBoxPriceEl && buyBoxPriceEl.textContent) {
                     price = cleanPrice(buyBoxPriceEl.textContent);
                 }
@@ -476,7 +480,7 @@
             // 4. Fallback .a-price .a-offscreen ONLY if inside main product container
             if (!price) {
                 const offscreenEl = document.querySelector('#centerCol .a-price .a-offscreen') ||
-                                    document.querySelector('.a-price .a-offscreen');
+                    document.querySelector('.a-price .a-offscreen');
                 if (offscreenEl && offscreenEl.textContent) {
                     price = cleanPrice(offscreenEl.textContent);
                 }
@@ -484,7 +488,7 @@
             // 5. #priceblock_ourprice, #priceblock_dealprice
             if (!price) {
                 const fallbackPriceEl = document.querySelector('#priceblock_ourprice') ||
-                                        document.querySelector('#priceblock_dealprice');
+                    document.querySelector('#priceblock_dealprice');
                 if (fallbackPriceEl && fallbackPriceEl.textContent) {
                     price = cleanPrice(fallbackPriceEl.textContent);
                 }
@@ -573,9 +577,9 @@
 
             // Title Selectors: h1.x-item-title__mainTitle .ux-textspans, h1#itemTitle
             const titleEl = document.querySelector('h1.x-item-title__mainTitle .ux-textspans') ||
-                            document.querySelector('h1#itemTitle') ||
-                            document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
-                            document.querySelector('#itemTitle');
+                document.querySelector('h1#itemTitle') ||
+                document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
+                document.querySelector('#itemTitle');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/^details about\s*/i, '').replace(/\s+/g, ' ');
             }
@@ -604,7 +608,7 @@
             }
 
             const shipEl = document.querySelector('[data-testid="ux-labels-values--shipping"]') ||
-                           document.querySelector('.ux-labels-values--shipping');
+                document.querySelector('.ux-labels-values--shipping');
             if (shipEl) shipping = parseShippingText(shipEl.textContent) || 0;
 
             const breadcrumbs = document.querySelector('.breadcrumbs') || document.querySelector('.seo-breadcrumb-text');
@@ -632,9 +636,9 @@
 
             // Title Selectors: h1.listing__title, [data-test="listing-title"]
             const titleEl = document.querySelector('h1.listing__title') ||
-                            document.querySelector('[data-test="listing-title"]') ||
-                            document.querySelector('h1.listing__title-large') ||
-                            document.querySelector('.listing__title');
+                document.querySelector('[data-test="listing-title"]') ||
+                document.querySelector('h1.listing__title-large') ||
+                document.querySelector('.listing__title');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
@@ -684,7 +688,7 @@
                             const getFieldText = (f) => (typeof f === 'object' ? f.display || f.name || f.title || '' : String(f || ''));
                             categoryContext += ` ${getFieldText(listing.department)} ${getFieldText(listing.category)} ${getFieldText(listing.sub_category)} ${listing.description || ''}`;
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
 
@@ -756,9 +760,9 @@
 
             // Title Selectors: h1#main-title, h1[itemprop="name"]
             const titleEl = document.querySelector('h1#main-title') ||
-                            document.querySelector('h1[itemprop="name"]') ||
-                            document.querySelector('#main-title') ||
-                            document.querySelector('h1');
+                document.querySelector('h1[itemprop="name"]') ||
+                document.querySelector('#main-title') ||
+                document.querySelector('h1');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
@@ -784,7 +788,7 @@
             }
 
             const shipEl = document.querySelector('[data-testid="fulfillment-shipping"]') ||
-                           document.querySelector('[data-testid="shipping-info"]');
+                document.querySelector('[data-testid="shipping-info"]');
             if (shipEl) shipping = parseShippingText(shipEl.textContent) || 0;
 
             const breadcrumbs = document.querySelector('nav[aria-label="breadcrumb"]') || document.querySelector('.breadcrumb');
@@ -905,8 +909,8 @@
 
             // Etsy Category / Breadcrumbs
             const catBreadcrumbs = document.querySelector('ul[data-bread-crumbs]') ||
-                                   document.querySelector('.wt-breadcrumbs') ||
-                                   document.querySelector('nav[aria-label="Breadcrumb"]');
+                document.querySelector('.wt-breadcrumbs') ||
+                document.querySelector('nav[aria-label="Breadcrumb"]');
             if (catBreadcrumbs && catBreadcrumbs.textContent) {
                 categoryContext += ` ${catBreadcrumbs.textContent}`;
             }
@@ -972,7 +976,10 @@
                     <!-- Main Calculator View -->
                     <div id="seller-calc-view-main">
                         <div class="seller-calc-header-bar">
-                            <h3 class="seller-calc-title">⚡ Seller Fees & Profits</h3>
+                            <h3 class="seller-calc-title">
+                                ${APP_ICON_URL ? `<img src="${APP_ICON_URL}" class="seller-calc-title-icon" alt="" />` : ''}
+                                <span>Seller Fees & Profits</span>
+                            </h3>
                             <div class="seller-calc-header-actions">
                                 <button id="sc-headerListBtn" class="seller-calc-header-btn" title="View Sourcing Scout List">
                                     <span>📋 Sheet</span><span class="seller-calc-count-pill" id="sc-headerListCount">${listCount}</span>
@@ -990,8 +997,8 @@
                         <!-- 1-Click Auto-Fill Button -->
                         <button id="sc-scrapeBtn" class="seller-calc-scrape-btn">
                             <div class="seller-calc-btn-left">
-                                <span>⚡</span>
-                                <span>1-Click Listing Auto-Fill</span>
+                                <span></span>
+                                <span>⚡1-Click Listing Auto-Fill</span>
                             </div>
                             <span class="seller-calc-pro-pill">PRO</span>
                         </button>
@@ -1305,7 +1312,7 @@
                 if (refreshed && refreshed.isProductPage && refreshed.price > 0) {
                     currentData = refreshed;
                     const floatPrice = parseFloat(refreshed.price);
-                    
+
                     // Insert into #sc-sellPrice and dispatch 'input' event so calculations update immediately
                     sellPriceInp.value = floatPrice.toFixed(2);
                     sellPriceInp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1618,7 +1625,7 @@
                         try {
                             link.remove();
                             URL.revokeObjectURL(url);
-                        } catch (e) {}
+                        } catch (e) { }
                     }, 1500);
                 } catch (err) {
                     // Fallback to Data URI if Blob is restricted
@@ -1631,7 +1638,7 @@
                         (document.body || document.documentElement).appendChild(link);
                         link.click();
                         setTimeout(() => {
-                            try { link.remove(); } catch (e) {}
+                            try { link.remove(); } catch (e) { }
                         }, 1500);
                     } catch (e2) {
                         console.error('CSV Export Error:', e2);
@@ -1709,9 +1716,10 @@
             }
             const activePrice = userIsPro ? (sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0)) : 0;
             const displayPrice = activePrice > 0 ? `$${activePrice.toFixed(2)}` : '';
-            const badgeText = displayPrice ? `⚡ Seller Calculator (${displayPrice})` : `⚡ Seller Calculator`;
+            const badgeText = displayPrice ? `Seller Calculator (${displayPrice})` : `Seller Calculator`;
             container.innerHTML = `
                 <div class="seller-calc-floating-badge" id="sc-floatingBadgeBtn" title="Open Seller Fees & Profits Calculator">
+                    ${APP_ICON_URL ? `<img src="${APP_ICON_URL}" class="seller-calc-badge-icon" alt="" />` : ''}
                     <span>${badgeText}</span>
                 </div>
             `;
@@ -1757,7 +1765,7 @@
                     if (badgeSpan) {
                         const activePrice = userIsPro ? (sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0)) : 0;
                         const displayPrice = activePrice > 0 ? `$${activePrice.toFixed(2)}` : '';
-                        badgeSpan.textContent = displayPrice ? `⚡ Seller Calculator (${displayPrice})` : `⚡ Seller Calculator`;
+                        badgeSpan.textContent = displayPrice ? `Seller Calculator (${displayPrice})` : `Seller Calculator`;
                     }
                 }
             }
@@ -1793,7 +1801,7 @@
                     sendResponse({ status: "ok" });
                 }
             });
-        } catch (e) {}
+        } catch (e) { }
     }
 
     function init() {

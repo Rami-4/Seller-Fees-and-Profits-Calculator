@@ -3,8 +3,18 @@
   "name": "Seller Fees & Profits Calculator",
   "version": "1.5",
   "description": "Instantly calculate net profit, fees, break-even price, and 1-click import listings.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
-    "default_title": "Seller Fees & Profits Calculator"
+    "default_title": "Seller Fees & Profits Calculator",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js"
@@ -40,6 +50,16 @@
         "content.css"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
