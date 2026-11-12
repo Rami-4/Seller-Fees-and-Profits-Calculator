@@ -38,7 +38,6 @@ const CATEGORY_RATES = {
 };
 
 const STORAGE_KEY = 'seller_calc_enabled_stores';
-const PRO_STORAGE_KEY = 'seller_calc_is_pro';
 const SOURCING_STORAGE_KEY = 'seller_calc_sourcing_list';
 const MAX_SOURCING_ITEMS = 50;
 
@@ -49,7 +48,6 @@ let currentScrapedUrl = '';
 const calcView = document.getElementById('calcView');
 const settingsView = document.getElementById('settingsView');
 const sourcingView = document.getElementById('sourcingView');
-const proModal = document.getElementById('proModal');
 
 // Navigation Buttons
 const toSettingsBtn = document.getElementById('toSettingsBtn');
@@ -57,12 +55,6 @@ const toCalcBtn = document.getElementById('toCalcBtn');
 const headerListBtn = document.getElementById('headerListBtn');
 const headerListCount = document.getElementById('headerListCount');
 const toCalcFromListBtn = document.getElementById('toCalcFromListBtn');
-
-// Pro Tier Elements
-const proBadgeBtn = document.getElementById('proBadgeBtn');
-const tierText = document.getElementById('tierText');
-const closeProModalBtn = document.getElementById('closeProModalBtn');
-const toggleProStatusBtn = document.getElementById('toggleProStatusBtn');
 
 // Scraping & Input Elements
 const scrapeBtn = document.getElementById('scrapeBtn');
@@ -93,56 +85,6 @@ const statAvgRoi = document.getElementById('statAvgRoi');
 const exportCsvBtn = document.getElementById('exportCsvBtn');
 const clearSourcingListBtn = document.getElementById('clearSourcingListBtn');
 const sourcingItemsContainer = document.getElementById('sourcingItemsContainer');
-
-// --- PRO TIER STATE MANAGEMENT ---
-function isPro() {
-    try {
-        const val = localStorage.getItem(PRO_STORAGE_KEY);
-        return val === 'true';
-    } catch (e) {
-        return false;
-    }
-}
-
-function setPro(status) {
-    try {
-        localStorage.setItem(PRO_STORAGE_KEY, status ? 'true' : 'false');
-    } catch (e) {
-        console.error('Error saving pro state', e);
-    }
-    updateProUI();
-}
-
-function updateProUI() {
-    const userIsPro = isPro();
-    if (userIsPro) {
-        tierText.textContent = 'PRO';
-        proBadgeBtn.classList.add('is-pro');
-        toggleProStatusBtn.textContent = 'Switch to Free Tier (Demo)';
-    } else {
-        tierText.textContent = 'Free';
-        proBadgeBtn.classList.remove('is-pro');
-        toggleProStatusBtn.textContent = '⭐ Activate Pro Tier (Demo / Full Access)';
-    }
-}
-
-proBadgeBtn.addEventListener('click', () => {
-    proModal.style.display = 'flex';
-});
-
-closeProModalBtn.addEventListener('click', () => {
-    proModal.style.display = 'none';
-});
-
-toggleProStatusBtn.addEventListener('click', () => {
-    const current = isPro();
-    setPro(!current);
-    showStatus(
-        !current ? '👑 Seller Pro Tier Activated!' : 'Switched back to Free Tier.',
-        !current ? 'status-success' : 'status-warn'
-    );
-    proModal.style.display = 'none';
-});
 
 // Toast Helper
 let statusTimeout;
@@ -190,7 +132,7 @@ function updateSourcingBadges() {
     const list = getSourcingList();
     const count = list.length;
     const countStr = `${count}/${MAX_SOURCING_ITEMS}`;
-    
+
     if (headerListCount) headerListCount.textContent = count;
     if (sourcingCountBadge) sourcingCountBadge.textContent = countStr;
     if (sourcingListTitleCount) sourcingListTitleCount.textContent = count;
@@ -284,12 +226,6 @@ clearSourcingListBtn.addEventListener('click', () => {
 
 // Save Current Calculation to Sourcing List
 saveToSourcingBtn.addEventListener('click', async () => {
-    if (!isPro()) {
-        proModal.style.display = 'flex';
-        showStatus('📊 Sourcing List & CSV Export is a Pro feature. Unlock below!', 'status-warn');
-        return;
-    }
-
     const cost = Math.max(0, parseFloat(costInput.value) || 0);
     const sellPrice = Math.max(0, parseFloat(sellPriceInput.value) || 0);
     const shipping = Math.max(0, parseFloat(shippingInput.value) || 0);
@@ -345,7 +281,7 @@ saveToSourcingBtn.addEventListener('click', async () => {
             if (tabs && tabs[0] && tabs[0].url && !tabs[0].url.startsWith('chrome')) {
                 productUrl = tabs[0].url;
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     const newItem = {
@@ -372,12 +308,6 @@ saveToSourcingBtn.addEventListener('click', async () => {
 
 // CSV Export Engine with Product URL
 exportCsvBtn.addEventListener('click', () => {
-    if (!isPro()) {
-        proModal.style.display = 'flex';
-        showStatus('📊 CSV Export requires Seller Pro. Unlock below!', 'status-warn');
-        return;
-    }
-
     const list = getSourcingList();
     if (list.length === 0) {
         showStatus('⚠️ Sourcing List is empty. Save items before exporting.', 'status-warn');
@@ -484,14 +414,8 @@ toCalcBtn.addEventListener('click', () => {
     calculate();
 });
 
-// --- 1-CLICK LISTING SCRAPER (PRO FEATURE) ---
+// --- 1-CLICK LISTING SCRAPER ---
 scrapeBtn.addEventListener('click', async () => {
-    if (!isPro()) {
-        proModal.style.display = 'flex';
-        showStatus('⚡ 1-Click Scraping requires Seller Pro. Activate Pro below!', 'status-warn');
-        return;
-    }
-
     showStatus('🔍 Reading active listing from browser tab...', 'status-warn');
 
     if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.scripting) {
@@ -844,7 +768,7 @@ function extractListingDataFromDOM() {
 
                         if (schemaTitle && schemaPrice && isBookSchema) break;
                     }
-                } catch (e) {}
+                } catch (e) { }
                 if (schemaTitle && schemaPrice && isBookSchema) break;
             }
             return { title: schemaTitle, price: schemaPrice, isBook: isBookSchema };
@@ -875,9 +799,9 @@ function extractListingDataFromDOM() {
             // Title Selectors: h1.listing__title, [data-test="listing-title"]
             let title = '';
             const titleEl = document.querySelector('h1.listing__title') ||
-                            document.querySelector('[data-test="listing-title"]') ||
-                            document.querySelector('h1.listing__title-large') ||
-                            document.querySelector('.listing__title');
+                document.querySelector('[data-test="listing-title"]') ||
+                document.querySelector('h1.listing__title-large') ||
+                document.querySelector('.listing__title');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
@@ -938,7 +862,7 @@ function extractListingDataFromDOM() {
                             categoryContext += ` ${getFieldText(listing.sub_category)}`;
                             if (listing.brand) categoryContext += ` ${getFieldText(listing.brand)}`;
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
 
@@ -989,8 +913,8 @@ function extractListingDataFromDOM() {
             }
 
             const catEl = document.querySelector('.listing__category-tag') ||
-                          document.querySelector('.breadcrumbs') ||
-                          document.querySelector('.listing__header-category');
+                document.querySelector('.breadcrumbs') ||
+                document.querySelector('.listing__header-category');
             if (catEl && catEl.textContent) categoryContext += ` ${catEl.textContent}`;
 
             // Universal Fallback (Schema / JSON-LD)
@@ -1040,9 +964,9 @@ function extractListingDataFromDOM() {
 
             // Title Selectors: #productTitle, h1#title
             let title = '';
-            const titleEl = document.querySelector('#productTitle') || 
-                            document.querySelector('h1#title') ||
-                            document.querySelector('#title');
+            const titleEl = document.querySelector('#productTitle') ||
+                document.querySelector('h1#title') ||
+                document.querySelector('#title');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
@@ -1051,8 +975,8 @@ function extractListingDataFromDOM() {
             // 1. #corePrice_feature_div .a-price .a-offscreen (specific to product buy box)
             let price = null;
             const coreOffscreen = document.querySelector('#corePrice_feature_div .a-price .a-offscreen') ||
-                                  document.querySelector('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
-                                  document.querySelector('#apex_desktop .a-price .a-offscreen');
+                document.querySelector('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
+                document.querySelector('#apex_desktop .a-price .a-offscreen');
             if (coreOffscreen && coreOffscreen.textContent) {
                 price = cleanPrice(coreOffscreen.textContent);
             }
@@ -1060,9 +984,9 @@ function extractListingDataFromDOM() {
             // 2. #corePriceDisplay_desktop_feature_div span.a-price-whole (paired with .a-price-fraction)
             if (!price) {
                 const wholeEl = document.querySelector('#corePriceDisplay_desktop_feature_div span.a-price-whole') ||
-                                document.querySelector('#corePrice_feature_div span.a-price-whole');
+                    document.querySelector('#corePrice_feature_div span.a-price-whole');
                 const fracEl = document.querySelector('#corePriceDisplay_desktop_feature_div .a-price-fraction') ||
-                               document.querySelector('#corePrice_feature_div .a-price-fraction');
+                    document.querySelector('#corePrice_feature_div .a-price-fraction');
                 if (wholeEl && wholeEl.textContent) {
                     const wholeStr = wholeEl.textContent.replace(/[^0-9]/g, '');
                     const fracStr = fracEl ? fracEl.textContent.replace(/[^0-9]/g, '') : '00';
@@ -1075,9 +999,9 @@ function extractListingDataFromDOM() {
             // 3. Fallback within #dp / #ppd buy box area
             if (!price) {
                 const buyBoxPriceEl = document.querySelector('#ppd .a-price .a-offscreen') ||
-                                      document.querySelector('#dp .a-price .a-offscreen') ||
-                                      document.querySelector('#price_inside_buybox') ||
-                                      document.querySelector('#newBuyBoxPrice');
+                    document.querySelector('#dp .a-price .a-offscreen') ||
+                    document.querySelector('#price_inside_buybox') ||
+                    document.querySelector('#newBuyBoxPrice');
                 if (buyBoxPriceEl && buyBoxPriceEl.textContent) {
                     price = cleanPrice(buyBoxPriceEl.textContent);
                 }
@@ -1086,7 +1010,7 @@ function extractListingDataFromDOM() {
             // 4. Fallback .a-price .a-offscreen ONLY if inside main product container
             if (!price) {
                 const offscreenEl = document.querySelector('#centerCol .a-price .a-offscreen') ||
-                                    document.querySelector('.a-price .a-offscreen');
+                    document.querySelector('.a-price .a-offscreen');
                 if (offscreenEl && offscreenEl.textContent) {
                     price = cleanPrice(offscreenEl.textContent);
                 }
@@ -1095,7 +1019,7 @@ function extractListingDataFromDOM() {
             // 5. #priceblock_ourprice, #priceblock_dealprice
             if (!price) {
                 const fallbackEl = document.querySelector('#priceblock_ourprice') ||
-                                   document.querySelector('#priceblock_dealprice');
+                    document.querySelector('#priceblock_dealprice');
                 if (fallbackEl && fallbackEl.textContent) {
                     price = cleanPrice(fallbackEl.textContent);
                 }
@@ -1220,9 +1144,9 @@ function extractListingDataFromDOM() {
             // Title Selectors: h1.x-item-title__mainTitle .ux-textspans, h1#itemTitle
             let title = '';
             const titleEl = document.querySelector('h1.x-item-title__mainTitle .ux-textspans') ||
-                            document.querySelector('h1#itemTitle') ||
-                            document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
-                            document.querySelector('#itemTitle');
+                document.querySelector('h1#itemTitle') ||
+                document.querySelector('.x-item-title__mainTitle .ux-textspans') ||
+                document.querySelector('#itemTitle');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/^details about\s*/i, '').replace(/\s+/g, ' ');
             }
@@ -1253,7 +1177,7 @@ function extractListingDataFromDOM() {
 
             let shipping = 0.00;
             const shipEl = document.querySelector('[data-testid="ux-labels-values--shipping"]') ||
-                           document.querySelector('.ux-labels-values--shipping');
+                document.querySelector('.ux-labels-values--shipping');
             if (shipEl) {
                 const parsedShip = parseShippingText(shipEl.textContent);
                 if (parsedShip !== null) shipping = parsedShip;
@@ -1312,9 +1236,9 @@ function extractListingDataFromDOM() {
             // Title Selectors: h1#main-title, h1[itemprop="name"]
             let title = '';
             const titleEl = document.querySelector('h1#main-title') ||
-                            document.querySelector('h1[itemprop="name"]') ||
-                            document.querySelector('#main-title') ||
-                            document.querySelector('h1');
+                document.querySelector('h1[itemprop="name"]') ||
+                document.querySelector('#main-title') ||
+                document.querySelector('h1');
             if (titleEl && titleEl.textContent) {
                 title = titleEl.textContent.trim().replace(/\s+/g, ' ');
             }
@@ -1496,8 +1420,8 @@ function extractListingDataFromDOM() {
             // Category & Breadcrumbs context
             let catBreadcrumbsText = '';
             const catBreadcrumbs = document.querySelector('ul[data-bread-crumbs]') ||
-                                   document.querySelector('.wt-breadcrumbs') ||
-                                   document.querySelector('nav[aria-label="Breadcrumb"]');
+                document.querySelector('.wt-breadcrumbs') ||
+                document.querySelector('nav[aria-label="Breadcrumb"]');
             if (catBreadcrumbs && catBreadcrumbs.textContent) {
                 catBreadcrumbsText = catBreadcrumbs.textContent;
             }
@@ -1642,7 +1566,7 @@ function calculate() {
         const fee = (sellPrice * platformRate.rate) + platformRate.fixed;
         const profit = sellPrice - (cost + shipping + fee);
         const roi = cost > 0 ? (profit / cost) * 100 : 0;
-        
+
         // Break-Even Formula: (cost + shipping + fixedFee) / (1 - platformRate)
         const denominator = 1 - platformRate.rate;
         const breakEven = denominator > 0 ? (cost + shipping + platformRate.fixed) / denominator : 0;
@@ -1657,7 +1581,7 @@ function calculate() {
         const isBest = item.profit === maxProfit && item.profit > 0;
         const isUnderBreakEven = item.isUnderBreakEven;
         const isNegative = item.profit < 0;
-        
+
         let profitClass = '';
         if (isUnderBreakEven || isNegative) {
             profitClass = 'profit-negative under-breakeven';
@@ -1665,8 +1589,8 @@ function calculate() {
             profitClass = 'best-val';
         }
 
-        const formattedProfit = isNegative 
-            ? `-$${Math.abs(item.profit).toFixed(2)}` 
+        const formattedProfit = isNegative
+            ? `-$${Math.abs(item.profit).toFixed(2)}`
             : `$${item.profit.toFixed(2)}`;
 
         tr.innerHTML = `
@@ -1811,12 +1735,11 @@ async function checkPendingAutoFill() {
                 }
             });
         }
-    } catch (e) {}
+    } catch (e) { }
 }
 
-// Initialize settings, pro state, sourcing count badges, and calculation on load
+// Initialize settings, sourcing count badges, and calculation on load
 initSettingsView();
-updateProUI();
 updateSourcingBadges();
 calculate();
 checkPendingAutoFill();

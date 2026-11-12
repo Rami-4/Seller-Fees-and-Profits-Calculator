@@ -55,7 +55,7 @@
     const SOURCING_STORAGE_KEY = 'seller_calc_sourcing_list';
     const MAX_SOURCING_ITEMS = 50;
 
-    let proCache = false; // Free tier by default
+    let proCache = true; // Fully unlocked by default for all users
     let storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true };
     let sourcingCache = [];
 
@@ -114,7 +114,7 @@
     }
 
     function isPro() {
-        return proCache;
+        return true;
     }
     function setPro(status) {
         proCache = !!status;
@@ -959,17 +959,16 @@
 
         let currentData = { ...data };
         let costVal = 0.00;
-        let sellPriceVal = isPro() && currentData.price > 0 ? currentData.price : 0.00;
-        let shippingVal = isPro() && currentData.shipping > 0 ? currentData.shipping : 0.00;
-        let selectedCategory = isPro() && currentData.category ? currentData.category : 'general';
+        let sellPriceVal = currentData.price > 0 ? currentData.price : 0.00;
+        let shippingVal = currentData.shipping > 0 ? currentData.shipping : 0.00;
+        let selectedCategory = currentData.category ? currentData.category : 'general';
         let isWindowExpanded = false;
 
         function renderFullWidget() {
             isWindowExpanded = true;
             const list = getSourcingList();
             const listCount = list.length;
-            const userIsPro = isPro();
-            const showScrapedBanner = userIsPro && currentData.price > 0;
+            const showScrapedBanner = currentData.price > 0;
 
             container.innerHTML = `
                 <div class="seller-calc-window">
@@ -984,9 +983,6 @@
                                 <button id="sc-headerListBtn" class="seller-calc-header-btn" title="View Sourcing Scout List">
                                     <span>📋 Sheet</span><span class="seller-calc-count-pill" id="sc-headerListCount">${listCount}</span>
                                 </button>
-                                <button id="sc-proBadgeBtn" class="seller-calc-header-btn seller-calc-pro-btn ${userIsPro ? 'is-pro' : ''}" title="Seller Pro Status">
-                                    👑 <span id="sc-tierText">${userIsPro ? 'PRO' : 'Free'}</span>
-                                </button>
                                 <button id="sc-toSettingsBtn" class="seller-calc-header-btn" title="Configure Stores">
                                     🏪 Stores
                                 </button>
@@ -995,12 +991,11 @@
                         </div>
 
                         <!-- 1-Click Auto-Fill Button -->
-                        <button id="sc-scrapeBtn" class="seller-calc-scrape-btn">
+                        <button id="sc-scrapeBtn" class="seller-calc-scrape-btn" title="Auto-fill listing details">
                             <div class="seller-calc-btn-left">
-                                <span></span>
-                                <span>⚡1-Click Listing Auto-Fill</span>
+                                <span>⚡</span>
+                                <span>1-Click Listing Auto-Fill</span>
                             </div>
-                            <span class="seller-calc-pro-pill">PRO</span>
                         </button>
 
                         <!-- Scraped Item Banner -->
@@ -1058,7 +1053,6 @@
                         <div class="seller-calc-action-bar">
                             <button id="sc-saveToSourcingBtn" class="seller-calc-action-btn seller-calc-save-action" title="Save to Sourcing List">
                                 <span>💾 Save to Sourcing List</span>
-                                <span class="seller-calc-pro-pill">PRO</span>
                             </button>
                             <button id="sc-openSourcingBtn" class="seller-calc-action-btn seller-calc-view-action" title="Open Scouted List">
                                 <span>📋 Scout List</span>
@@ -1102,28 +1096,12 @@
                         </div>
                         <div id="sc-storesList"></div>
                     </div>
-
-                    <!-- Seller Pro Modal Overlay -->
-                    <div id="sc-proModal" class="seller-calc-modal-overlay" style="display: none;">
-                        <div class="seller-calc-pro-card">
-                            <div class="seller-calc-pro-title">👑 Seller Pro Tier</div>
-                            <div class="seller-calc-pro-subtitle">Supercharge your sourcing and fee calculations.</div>
-                            <div class="seller-calc-pro-features">
-                                <div class="seller-calc-pro-feature"><span>⚡</span> <span><strong>1-Click Listing Auto-Fill:</strong> Instant DOM scraping</span></div>
-                                <div class="seller-calc-pro-feature"><span>📊</span> <span><strong>Sourcing List & Export:</strong> Up to 50 items with direct URLs</span></div>
-                                <div class="seller-calc-pro-feature"><span>🎯</span> <span><strong>Live Break-Even Pricing:</strong> Real-time margin safety</span></div>
-                            </div>
-                            <button id="sc-toggleProBtn" class="seller-calc-pro-toggle-btn">${userIsPro ? 'Downgrade to Free Tier' : '⭐ Activate Pro Tier (Demo)'}</button>
-                            <button id="sc-closeProBtn" class="seller-calc-pro-close-btn">Close</button>
-                        </div>
-                    </div>
                 </div>
             `;
 
             const viewMain = container.querySelector('#seller-calc-view-main');
             const viewSourcing = container.querySelector('#seller-calc-view-sourcing');
             const viewSettings = container.querySelector('#seller-calc-view-settings');
-            const proModal = container.querySelector('#sc-proModal');
 
             const costInp = container.querySelector('#sc-cost');
             const sellPriceInp = container.querySelector('#sc-sellPrice');
@@ -1297,11 +1275,6 @@
 
             // 1-Click Auto-Fill Handler
             container.querySelector('#sc-scrapeBtn').addEventListener('click', () => {
-                if (!isPro()) {
-                    proModal.style.display = 'flex';
-                    showToast('⚡ 1-Click Auto-Fill requires Seller Pro.', 'seller-calc-status-warn');
-                    return;
-                }
                 const refreshed = scrapeCurrentListing();
 
                 if (refreshed && refreshed.isHomePageOrSearch) {
@@ -1378,52 +1351,6 @@
                 viewSettings.style.display = 'none';
                 viewMain.style.display = 'block';
                 calculate();
-            });
-
-            // Pro Modal Listeners
-            container.querySelector('#sc-proBadgeBtn').addEventListener('click', () => {
-                proModal.style.display = 'flex';
-            });
-            container.querySelector('#sc-closeProBtn').addEventListener('click', () => {
-                proModal.style.display = 'none';
-            });
-            container.querySelector('#sc-toggleProBtn').addEventListener('click', () => {
-                const current = isPro();
-                setPro(!current);
-                const updated = isPro();
-                const badge = container.querySelector('#sc-proBadgeBtn');
-                const tierText = container.querySelector('#sc-tierText');
-                if (updated) {
-                    badge.classList.add('is-pro');
-                    tierText.textContent = 'PRO';
-                    if (currentData.price > 0) {
-                        sellPriceInp.value = currentData.price.toFixed(2);
-                        sellPriceVal = currentData.price;
-                        if (currentData.shipping > 0) {
-                            shippingInp.value = currentData.shipping.toFixed(2);
-                            shippingVal = currentData.shipping;
-                        }
-                        if (currentData.category) {
-                            categorySelect.value = currentData.category;
-                            selectedCategory = currentData.category;
-                        }
-                        const banner = container.querySelector('#sc-scrapedBanner');
-                        if (banner) {
-                            banner.style.display = 'flex';
-                            container.querySelector('#sc-scrapedTitle').textContent = currentData.title;
-                            container.querySelector('#sc-scrapedPlatform').textContent = currentData.platform;
-                        }
-                        calculate();
-                    }
-                } else {
-                    badge.classList.remove('is-pro');
-                    tierText.textContent = 'Free';
-                    const banner = container.querySelector('#sc-scrapedBanner');
-                    if (banner) banner.style.display = 'none';
-                }
-                container.querySelector('#sc-toggleProBtn').textContent = updated ? 'Downgrade to Free Tier' : '⭐ Activate Pro Tier (Demo)';
-                proModal.style.display = 'none';
-                showToast(updated ? '👑 Seller Pro Tier Activated!' : 'Switched to Free Tier');
             });
 
             // Sourcing Sheet View Rendering
@@ -1523,12 +1450,6 @@
 
             // Save to Sourcing List
             container.querySelector('#sc-saveToSourcingBtn').addEventListener('click', () => {
-                if (!isPro()) {
-                    proModal.style.display = 'flex';
-                    showToast('📊 Saving to Sourcing List requires Seller Pro.', 'seller-calc-status-warn');
-                    return;
-                }
-
                 const list = getSourcingList();
                 if (list.length >= MAX_SOURCING_ITEMS) {
                     showToast('⚠️ Sourcing List full (50 max). Export CSV or remove items.', 'seller-calc-status-warn');
@@ -1648,12 +1569,6 @@
 
             // CSV Export Button
             container.querySelector('#sc-exportCsvBtn').addEventListener('click', () => {
-                if (!isPro()) {
-                    proModal.style.display = 'flex';
-                    showToast('📥 CSV Export requires Seller Pro.', 'seller-calc-status-warn');
-                    return;
-                }
-
                 const list = getSourcingList();
                 if (list.length === 0) {
                     showToast('⚠️ Sourcing List is empty. Save items from the calculator to export!', 'seller-calc-status-warn');
@@ -1706,15 +1621,14 @@
 
         function renderMinimizedBadge() {
             isWindowExpanded = false;
-            const userIsPro = isPro();
-            if (userIsPro && (!currentData.price || currentData.price <= 0)) {
+            if (!currentData.price || currentData.price <= 0) {
                 const fresh = scrapeCurrentListing();
                 if (fresh && fresh.price > 0) {
                     currentData = { ...currentData, ...fresh };
                     if (!sellPriceVal || sellPriceVal <= 0) sellPriceVal = fresh.price;
                 }
             }
-            const activePrice = userIsPro ? (sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0)) : 0;
+            const activePrice = sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0);
             const displayPrice = activePrice > 0 ? `$${activePrice.toFixed(2)}` : '';
             const badgeText = displayPrice ? `Seller Calculator (${displayPrice})` : `Seller Calculator`;
             container.innerHTML = `
@@ -1742,28 +1656,27 @@
             updateData: (newData) => {
                 if (!newData) newData = scrapeCurrentListing();
                 if (!newData) return;
-                const userIsPro = isPro();
                 if (newData.price > 0) {
                     currentData.price = newData.price;
-                    if (userIsPro && (!sellPriceVal || sellPriceVal <= 0)) {
+                    if (!sellPriceVal || sellPriceVal <= 0) {
                         sellPriceVal = newData.price;
                     }
                 }
                 if (newData.shipping > 0) {
                     currentData.shipping = newData.shipping;
-                    if (userIsPro && (!shippingVal || shippingVal <= 0)) {
+                    if (!shippingVal || shippingVal <= 0) {
                         shippingVal = newData.shipping;
                     }
                 }
                 if (newData.title) currentData.title = newData.title;
                 if (newData.platform) currentData.platform = newData.platform;
                 if (newData.url) currentData.url = newData.url;
-                if (newData.category && userIsPro) selectedCategory = newData.category;
+                if (newData.category) selectedCategory = newData.category;
 
                 if (!isWindowExpanded) {
                     const badgeSpan = container.querySelector('#sc-floatingBadgeBtn span');
                     if (badgeSpan) {
-                        const activePrice = userIsPro ? (sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0)) : 0;
+                        const activePrice = sellPriceVal > 0 ? sellPriceVal : (currentData.price > 0 ? currentData.price : 0);
                         const displayPrice = activePrice > 0 ? `$${activePrice.toFixed(2)}` : '';
                         badgeSpan.textContent = displayPrice ? `Seller Calculator (${displayPrice})` : `Seller Calculator`;
                     }

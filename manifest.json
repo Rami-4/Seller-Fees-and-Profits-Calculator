@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Seller Fees & Profits Calculator",
-  "version": "1.5",
+  "version": "2",
   "description": "Instantly calculate net profit, fees, break-even price, and 1-click import listings.",
   "icons": {
     "16": "icons/icon16.png",
