@@ -26,20 +26,20 @@
     "downloads"
   ],
   "host_permissions": [
-    "<all_urls>",
     "*://*.amazon.com/*",
     "*://*.ebay.com/*",
     "*://*.poshmark.com/*",
+    "*://*.poshmark.ca/*",
     "*://*.walmart.com/*",
     "*://*.etsy.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "<all_urls>",
         "*://*.amazon.com/*",
         "*://*.ebay.com/*",
         "*://*.poshmark.com/*",
+        "*://*.poshmark.ca/*",
         "*://*.walmart.com/*",
         "*://*.etsy.com/*"
       ],
@@ -58,7 +58,12 @@
         "icons/*"
       ],
       "matches": [
-        "<all_urls>"
+        "*://*.amazon.com/*",
+        "*://*.ebay.com/*",
+        "*://*.poshmark.com/*",
+        "*://*.poshmark.ca/*",
+        "*://*.walmart.com/*",
+        "*://*.etsy.com/*"
       ]
     }
   ]
