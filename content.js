@@ -14,6 +14,7 @@
     const PLATFORMS_META = [
         { id: 'ebay', baseName: 'eBay', desc: 'Category-specific final value fee + $0.30' },
         { id: 'amazon', baseName: 'Amazon', desc: 'Category referral fee (+ closing fee for media)' },
+        { id: 'etsy', baseName: 'Etsy', desc: '6.5% transaction fee + 3% payment + $0.45 fixed' },
         { id: 'walmart', baseName: 'Walmart', desc: '15% referral fee (8% for electronics), $0.00 fixed' },
         { id: 'poshmark', baseName: 'Poshmark', desc: '20.00% flat sales fee' },
         { id: 'stripe', baseName: 'Direct / Stripe', desc: '2.90% + $0.30 payment fee' }
@@ -23,6 +24,7 @@
         general: {
             ebay: { rate: 0.1325, fixed: 0.30, label: 'eBay (~13.25% + $0.30)' },
             amazon: { rate: 0.15, fixed: 0.00, label: 'Amazon (15%)' },
+            etsy: { rate: 0.095, fixed: 0.45, label: 'Etsy (~9.5% + $0.45)' },
             walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
@@ -30,6 +32,7 @@
         electronics: {
             ebay: { rate: 0.0935, fixed: 0.30, label: 'eBay (~9.35% + $0.30)' },
             amazon: { rate: 0.08, fixed: 0.00, label: 'Amazon (8%)' },
+            etsy: { rate: 0.095, fixed: 0.45, label: 'Etsy (~9.5% + $0.45)' },
             walmart: { rate: 0.08, fixed: 0.00, label: 'Walmart (8%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
@@ -37,6 +40,7 @@
         apparel: {
             ebay: { rate: 0.15, fixed: 0.30, label: 'eBay (15% + $0.30)' },
             amazon: { rate: 0.17, fixed: 0.00, label: 'Amazon (17%)' },
+            etsy: { rate: 0.095, fixed: 0.45, label: 'Etsy (~9.5% + $0.45)' },
             walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
@@ -44,6 +48,7 @@
         media: {
             ebay: { rate: 0.146, fixed: 0.30, label: 'eBay (14.6% + $0.30)' },
             amazon: { rate: 0.15, fixed: 1.80, label: 'Amazon (15% + $1.80)' },
+            etsy: { rate: 0.095, fixed: 0.45, label: 'Etsy (~9.5% + $0.45)' },
             walmart: { rate: 0.15, fixed: 0.00, label: 'Walmart (15%)' },
             poshmark: { rate: 0.20, fixed: 0.00, label: 'Poshmark (20%)' },
             stripe: { rate: 0.029, fixed: 0.30, label: 'Direct / Stripe (2.9% + $0.30)' }
@@ -56,7 +61,7 @@
     const MAX_SOURCING_ITEMS = 50;
 
     let proCache = true; // Fully unlocked by default for all users
-    let storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true };
+    let storesCache = { ebay: true, amazon: true, etsy: true, walmart: true, poshmark: true, stripe: true };
     let sourcingCache = [];
 
     function syncFromStorage() {
@@ -67,7 +72,7 @@
                         proCache = res[PRO_STORAGE_KEY] === true || res[PRO_STORAGE_KEY] === 'true';
                     }
                     if (res[STORAGE_KEY] && typeof res[STORAGE_KEY] === 'object') {
-                        storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...res[STORAGE_KEY] };
+                        storesCache = { ebay: true, amazon: true, etsy: true, walmart: true, poshmark: true, stripe: true, ...res[STORAGE_KEY] };
                     }
                     if (Array.isArray(res[SOURCING_STORAGE_KEY])) {
                         sourcingCache = [...res[SOURCING_STORAGE_KEY]];
@@ -84,7 +89,7 @@
             } catch (e) { }
             try {
                 const s = localStorage.getItem(STORAGE_KEY);
-                if (s) storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...JSON.parse(s) };
+                if (s) storesCache = { ebay: true, amazon: true, etsy: true, walmart: true, poshmark: true, stripe: true, ...JSON.parse(s) };
             } catch (e) { }
             try {
                 const l = localStorage.getItem(SOURCING_STORAGE_KEY);
@@ -101,7 +106,7 @@
                     proCache = changes[PRO_STORAGE_KEY].newValue === true || changes[PRO_STORAGE_KEY].newValue === 'true';
                 }
                 if (changes[STORAGE_KEY] && changes[STORAGE_KEY].newValue) {
-                    storesCache = { ebay: true, amazon: true, walmart: true, poshmark: true, stripe: true, ...changes[STORAGE_KEY].newValue };
+                    storesCache = { ebay: true, amazon: true, etsy: true, walmart: true, poshmark: true, stripe: true, ...changes[STORAGE_KEY].newValue };
                 }
                 if (changes[SOURCING_STORAGE_KEY] && Array.isArray(changes[SOURCING_STORAGE_KEY].newValue)) {
                     sourcingCache = [...changes[SOURCING_STORAGE_KEY].newValue];
@@ -127,7 +132,7 @@
         }
     }
     function getEnabledStores() {
-        return { ...storesCache };
+        return { ebay: true, amazon: true, etsy: true, walmart: true, poshmark: true, stripe: true, ...storesCache };
     }
     function saveEnabledStores(state) {
         storesCache = { ...state };
